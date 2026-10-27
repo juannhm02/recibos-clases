@@ -1,0 +1,786 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#1B2756">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Recibos">
+<title>Recibos de Clases</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Atkinson+Hyperlegible:wght@400;700&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" defer></script>
+<style>
+/* Una columna tipo talonario; el recibo es una hoja con borde troquelado. */
+:root{
+  --paper:#F5F7FB; --sheet:#FFFFFF; --ink:#1B2756; --muted:#5E6786; --line:#D9DEEB;
+  --accent:#2E57E0; --on-accent:#FFFFFF; --accent-soft:#E3E9FC; --ok:#17805A; --ok-soft:#DDF2E8; --warn:#A8661A; --warn-soft:#FBEEDB;
+  --off:#9AA2BC; --hatch:#E7EAF2; --danger:#C2412D;
+  --f-display:"Bricolage Grotesque","Segoe UI",system-ui,sans-serif;
+  --f-body:"Atkinson Hyperlegible","Segoe UI",system-ui,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){:root{
+  --paper:#0F1320; --sheet:#171C2C; --ink:#E5E9F7; --muted:#A0A8C4; --line:#2B3350;
+  --accent:#7D9BFF; --on-accent:#0F1320; --accent-soft:#232E55; --ok:#5ACB9B; --ok-soft:#173A2D; --warn:#E6AA5C; --warn-soft:#3E2F18;
+  --off:#5C6482; --hatch:#222943; --danger:#F07A66; color-scheme:dark}}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--f-body);font-size:16px;line-height:1.45;padding-top:env(safe-area-inset-top,0px)}
+[hidden]{display:none!important}
+.wrap{max-width:720px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 96px}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0;line-height:1.1}
+h1{font-size:1.9rem;font-weight:800;letter-spacing:-.01em}
+h2{font-size:1.35rem;font-weight:800}
+h3{font-size:1.1rem;font-weight:600}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.num{font-variant-numeric:tabular-nums}
+.mono{font-family:var(--f-mono)}
+.label{font-size:.78rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:700}
+.hint{font-size:.88rem;color:var(--muted);margin:0}
+
+header.top{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:18px}
+.tabs{display:flex;gap:4px;background:var(--sheet);border:1px solid var(--line);border-radius:999px;padding:4px}
+.tabs button{border:0;background:transparent;padding:8px 14px;border-radius:999px;font-weight:700;color:var(--muted)}
+.tabs button[aria-selected="true"]{background:var(--ink);color:var(--paper)}
+
+.month{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:6px 0 14px}
+.month h2,.month h3{text-transform:capitalize;text-align:center}
+.iconbtn{width:44px;height:44px;flex:none;border-radius:12px;border:1px solid var(--line);background:var(--sheet);font-size:1.3rem;display:grid;place-items:center}
+
+.summary{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:14px;overflow:hidden;margin-bottom:14px}
+.summary div{background:var(--sheet);padding:12px 14px;min-width:0}
+.summary .v{font-family:var(--f-display);font-size:1.35rem;font-weight:800;font-variant-numeric:tabular-nums}
+.summary .v.ok{color:var(--ok)} .summary .v.warn{color:var(--warn)}
+@media (max-width:400px){.summary .v{font-size:1.1rem}}
+
+.list{display:flex;flex-direction:column;gap:10px}
+.row{display:grid;grid-template-columns:1fr auto;gap:4px 12px;align-items:center;width:100%;text-align:left;background:var(--sheet);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+.row:hover{border-color:var(--accent)}
+.row .name{font-weight:700;font-size:1.08rem;min-width:0;overflow-wrap:anywhere}
+.row .meta{color:var(--muted);font-size:.9rem;min-width:0}
+.row .amt{font-family:var(--f-display);font-weight:800;font-size:1.25rem;text-align:right;font-variant-numeric:tabular-nums}
+.pill{display:inline-block;font-size:.78rem;font-weight:700;padding:3px 10px;border-radius:999px;justify-self:end}
+.pill.ok{background:var(--ok-soft);color:var(--ok)} .pill.warn{background:var(--warn-soft);color:var(--warn)}
+.ex{font-size:.72rem;font-weight:700;color:var(--muted);border:1px dashed var(--off);border-radius:6px;padding:1px 6px;margin-left:6px;vertical-align:middle}
+
+.btn{border:1px solid var(--line);background:var(--sheet);border-radius:12px;padding:11px 16px;font-weight:700;min-height:46px}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.btn.okb{background:var(--ok-soft);border-color:transparent;color:var(--ok)}
+.btn.danger{color:var(--danger);border-color:currentColor;background:transparent}
+.btn.ghost{background:transparent}
+.btns{display:flex;flex-wrap:wrap;gap:8px}
+.wide{width:100%}
+.empty{background:var(--sheet);border:1.5px dashed var(--line);border-radius:14px;padding:24px;text-align:center;color:var(--muted)}
+.empty strong{color:var(--ink);display:block;margin-bottom:4px;font-size:1.05rem}
+.card{background:var(--sheet);border:1px solid var(--line);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+
+.sheet{position:fixed;inset:0;z-index:20;background:var(--paper);overflow-y:auto;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+.sheet .wrap{padding-block:12px 60px}
+.sheet-head{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.sheet-head h2{flex:1;min-width:0;overflow-wrap:anywhere}
+.section{margin-top:22px;display:flex;flex-direction:column;gap:10px}
+
+.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
+.cal .wd{text-align:center;font-size:.75rem;font-weight:700;color:var(--muted);padding-bottom:2px}
+.day{aspect-ratio:1/1.05;max-width:100%;min-width:0;border:1px solid var(--line);border-radius:10px;background:var(--sheet);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;padding:2px;font-variant-numeric:tabular-nums}
+.day .d{font-weight:700;font-size:1rem}
+.day .h{font-size:.68rem;font-weight:700;min-height:1em;white-space:nowrap}
+.day.blank{visibility:hidden}
+.day.habit{background:var(--accent-soft);border-color:transparent}
+.day.habit .h{color:var(--accent)}
+.day.extra{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.day.missed{color:var(--off)} .day.missed .d{text-decoration:line-through}
+.day.holiday{background:repeating-linear-gradient(135deg,var(--hatch) 0 5px,var(--sheet) 5px 10px);color:var(--muted)}
+.day.sel{outline:3px solid var(--ink);outline-offset:1px}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:.82rem;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{width:14px;height:14px;border-radius:4px;display:inline-block;border:1px solid var(--line)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:1px solid var(--line);background:var(--sheet);border-radius:999px;padding:8px 14px;font-weight:700;min-height:42px}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+
+.receipt{position:relative;background:var(--sheet);border:1px solid var(--line);border-radius:4px 4px 14px 14px;padding:26px 20px 18px;font-family:var(--f-mono);font-size:.9rem;line-height:1.55}
+.receipt::before{content:"";position:absolute;left:0;right:0;top:-1px;height:10px;background:radial-gradient(circle at 7px 0,var(--paper) 5px,transparent 5.5px) 0 0/14px 10px repeat-x}
+.receipt .rh{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;border-bottom:1px dashed var(--line);padding-bottom:10px;margin-bottom:10px}
+.receipt .rh b{font-family:var(--f-display);font-size:1.15rem;letter-spacing:.06em}
+.receipt .total{display:flex;justify-content:space-between;border-top:1px dashed var(--line);margin-top:10px;padding-top:10px;font-weight:600;font-size:1.05rem}
+.receipt .detail{color:var(--muted);overflow-wrap:anywhere}
+.stamp{display:inline-block;border:2px solid var(--ok);color:var(--ok);border-radius:6px;padding:2px 10px;font-weight:600;transform:rotate(-4deg);margin-top:10px}
+
+.field{display:flex;flex-direction:column;gap:6px}
+.field input,.field select,.field textarea{background:var(--sheet);border:1px solid var(--line);border-radius:12px;padding:11px 12px;min-height:46px;width:100%}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:420px){.grid2{grid-template-columns:1fr}}
+.dayrow{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:center}
+.dayrow input[type=time]{max-width:150px}
+.confirm{background:var(--warn-soft);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:10px}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--paper);padding:10px 18px;border-radius:999px;font-weight:700;z-index:40;max-width:calc(100% - 32px);text-align:center}
+textarea.copybox{width:100%;min-height:160px;font-family:var(--f-mono);font-size:.85rem;background:var(--sheet);border:1px solid var(--line);border-radius:12px;padding:10px}
+
+/* horario semanal */
+.week{display:flex;flex-direction:column;gap:10px}
+.wday{background:var(--sheet);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.wday.today{border-color:var(--accent);border-width:2px}
+.wday h3{display:flex;justify-content:space-between;gap:8px;padding:10px 14px;background:var(--accent-soft);font-size:1rem;text-transform:capitalize}
+.wday.holi h3{background:repeating-linear-gradient(135deg,var(--hatch) 0 5px,var(--sheet) 5px 10px)}
+.slot{display:grid;grid-template-columns:96px 1fr auto;gap:10px;align-items:center;padding:10px 14px;border-top:1px solid var(--line)}
+.slot:first-of-type{border-top:0}
+.slot .t{font-family:var(--f-mono);font-weight:600;font-size:.9rem}
+.slot .n{font-weight:700;min-width:0;overflow-wrap:anywhere}
+.tag{font-size:.72rem;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--accent);color:var(--on-accent)}
+.slot.none{color:var(--muted);grid-template-columns:1fr}
+@media (min-width:860px){.wrap.wide-ok{max-width:1100px}.week{display:grid;grid-template-columns:repeat(6,1fr);align-items:start}.slot{grid-template-columns:1fr;gap:2px}}
+
+@media (prefers-reduced-motion:no-preference){.row,.btn,.chip,.day{transition:border-color .15s,background .15s}}
+
+/* impresión: solo los recibos */
+#printArea{display:none}
+@media print{
+  @page{size:A5 portrait;margin:12mm}
+  body{background:#fff;color:#000;padding:0}
+  #app,#sheet,#toast{display:none!important}
+  #printArea{display:block}
+  .pr{page-break-after:always;break-after:page;font-family:var(--f-body);color:#000}
+  .pr:last-child{page-break-after:auto;break-after:auto}
+  .pr h1{font-family:var(--f-display);font-size:22pt;letter-spacing:.08em;margin:0}
+  .pr .n{font-family:var(--f-mono);font-size:10pt}
+  .pr .top{display:flex;justify-content:space-between;align-items:baseline;border-bottom:1.5pt solid #000;padding-bottom:6pt;margin-bottom:12pt}
+  .pr table{width:100%;border-collapse:collapse;font-size:11pt}
+  .pr td{padding:4pt 0;vertical-align:top}
+  .pr td:first-child{color:#444;width:32%}
+  .pr .tot{display:flex;justify-content:space-between;border-top:1pt dashed #000;border-bottom:1pt dashed #000;margin-top:12pt;padding:8pt 0;font-size:15pt;font-weight:700}
+  .pr .firma{margin-top:28pt;display:flex;justify-content:space-between;gap:20pt;font-size:10pt}
+  .pr .firma div{flex:1;border-top:.75pt solid #000;padding-top:4pt}
+  .pr .pagado{display:inline-block;border:2pt solid #000;padding:2pt 10pt;margin-top:10pt;font-weight:700;transform:rotate(-3deg)}
+}
+/* buscador, filtros y selección */
+.tools{display:flex;flex-direction:column;gap:10px;margin-bottom:14px}
+.search{position:relative}
+.search input{width:100%;background:var(--sheet);border:1px solid var(--line);border-radius:12px;padding:11px 12px 11px 40px;min-height:48px}
+.search svg{position:absolute;left:13px;top:50%;transform:translateY(-50%);width:18px;height:18px;stroke:var(--muted);fill:none;stroke-width:2}
+.filters{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.filters .spacer{flex:1}
+.chip.small{min-height:38px;padding:6px 12px;font-size:.92rem}
+.row{position:relative}
+.selmode .row{grid-template-columns:auto 1fr auto}
+.selmode .row .meta{grid-column:2}
+.selmode .row .pill{grid-column:3}
+.check{width:26px;height:26px;border-radius:8px;border:2px solid var(--off);display:grid;place-items:center;grid-row:span 2;color:transparent;font-weight:800}
+.row.on{border-color:var(--accent);background:var(--accent-soft)}
+.row.on .check{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.selbar{position:fixed;left:0;right:0;bottom:0;z-index:15;background:var(--ink);color:var(--paper);padding:12px max(16px,env(safe-area-inset-right,0px)) calc(12px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+.selbar .in{max-width:720px;margin:0 auto;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.selbar .count{font-weight:700;flex:1 1 100%}
+.selbar .btn{background:transparent;color:var(--paper);border-color:color-mix(in srgb,var(--paper) 40%,transparent);min-height:42px;padding:8px 14px}
+.selbar .btn.primary{background:var(--paper);color:var(--ink);border-color:var(--paper)}
+.noresults{padding:18px;text-align:center;color:var(--muted)}
+.sync{font-size:.82rem;color:var(--muted);display:flex;align-items:center;gap:6px}
+.sync i{width:8px;height:8px;border-radius:50%;background:var(--ok);display:inline-block}
+.sync.off i{background:var(--warn)}
+
+/* acceso */
+.login{max-width:420px;margin:8vh auto 0;display:flex;flex-direction:column;gap:14px}
+.err{color:var(--danger);font-weight:700;margin:0}
+.loading{padding:40px 0;text-align:center;color:var(--muted)}
+
+/* vista del alumno */
+.kid h1{font-size:2.1rem}
+.kid .next{background:var(--accent);color:var(--on-accent);border-radius:16px;padding:18px;display:flex;flex-direction:column;gap:4px}
+.kid .next .big{font-family:var(--f-display);font-size:1.6rem;font-weight:800}
+.kid .next .big::first-letter,.kitem .f::first-letter{text-transform:uppercase}
+.klist{display:flex;flex-direction:column;background:var(--sheet);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.kitem{display:grid;grid-template-columns:1fr auto;gap:8px;padding:12px 14px;border-top:1px solid var(--line);align-items:center}
+.kitem:first-child{border-top:0}
+.kitem .f{font-weight:700}
+.kitem.past{color:var(--off)}
+.badge{display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:var(--warn);color:#fff;font-size:.75rem;font-weight:800;margin-left:4px;vertical-align:1px}
+.reqs{display:flex;flex-direction:column;gap:10px;margin-bottom:18px}
+.req{background:var(--sheet);border:1px solid var(--line);border-left:4px solid var(--warn);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:6px}
+.req .who{font-weight:700;font-size:1.05rem}
+.req .when::first-letter{text-transform:uppercase}
+.req .when{font-weight:700}
+.req .nota{background:var(--paper);border-radius:8px;padding:6px 10px;font-size:.92rem;overflow-wrap:anywhere}
+.req .aviso{color:var(--warn);font-size:.88rem;font-weight:700}
+.banner{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;text-align:left;background:var(--warn-soft);color:var(--ink);border:0;border-radius:12px;padding:12px 14px;margin-bottom:14px;font-weight:700}
+.st{font-size:.75rem;font-weight:700;padding:3px 10px;border-radius:999px;white-space:nowrap}
+.st.pendiente{background:var(--warn-soft);color:var(--warn)} .st.aceptada{background:var(--ok-soft);color:var(--ok)} .st.rechazada{background:var(--hatch);color:var(--muted)}
+.kform{background:var(--sheet);border:1px solid var(--line);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:12px}
+.kform .grid3{display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:10px}
+@media (max-width:420px){.kform .grid3{grid-template-columns:1fr 1fr}.kform .grid3 .field:first-child{grid-column:1/-1}}
+</style>
+</head>
+<body>
+<div class="wrap" id="app"><div class="loading">Cargando…</div></div>
+<div class="sheet" id="sheet" hidden><div class="wrap" id="sheetBody"></div></div>
+<div class="selbar" id="selbar" hidden></div>
+<div class="toast" id="toast" hidden></div>
+<div id="printArea"></div>
+<input type="file" id="fileRestore" accept="application/json,.json" hidden>
+
+<script>
+/* =========================================================
+   PEGA AQUÍ LA CONFIGURACIÓN DE TU PROYECTO DE FIREBASE
+   (Consola de Firebase › Configuración del proyecto › Tus apps › SDK)
+   ========================================================= */
+const firebaseConfig = {
+  apiKey: "AIzaSyCjnnsWz-cSfkbnPGF-SNXSiuCJEYUhFaQ",
+  authDomain: "recibos-clases.firebaseapp.com",
+  projectId: "recibos-clases",
+  storageBucket: "recibos-clases.firebasestorage.app",
+  messagingSenderId: "203608699398",
+  appId: "1:203608699398:web:d7bfeb7b64f2ec4d148987"
+};
+</script>
+<script>
+(function(){
+const MESES=["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
+const DIAS_CORTO=["L","M","X","J","V","S","D"];
+const DIAS_PL=["lunes","martes","miércoles","jueves","viernes","sábados","domingos"];
+const DIAS_SG=["lunes","martes","miércoles","jueves","viernes","sábado","domingo"];
+const eur=n=>n.toLocaleString("es-ES",{minimumFractionDigits:2,maximumFractionDigits:2})+" €";
+const hrs=n=>(Number.isInteger(n)?n:n.toLocaleString("es-ES"))+" h";
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const $=id=>document.getElementById(id);
+const pad=n=>String(n).padStart(2,"0");
+const isoOf=dt=>dt.getFullYear()+"-"+pad(dt.getMonth()+1)+"-"+pad(dt.getDate());
+const wdOf=dt=>(dt.getDay()+6)%7;
+const keyOf=(y,m)=>y+"-"+pad(m+1);
+const has=(o,k)=>Object.prototype.hasOwnProperty.call(o||{},k);
+const norm=s=>String(s||"").normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase();
+const clone=o=>JSON.parse(JSON.stringify(o));
+const randId=n=>{const a=new Uint8Array(n);crypto.getRandomValues(a);return [...a].map(b=>"abcdefghijkmnpqrstuvwxyz23456789"[b%32]).join("")};
+function finHora(t,h){if(!t)return "";const [H,M]=t.split(":").map(Number);const mins=H*60+M+Math.round(h*60);return pad(Math.floor(mins/60)%24)+":"+pad(mins%60)}
+let toastT;function toast(t){const el=$("toast");el.textContent=t;el.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>el.hidden=true,2600)}
+
+/* ---------- Firebase ---------- */
+if(!firebaseConfig.apiKey||firebaseConfig.apiKey==="PEGA_AQUI"){
+  $("app").innerHTML=`<div class="login"><h1>Falta configurar</h1><p class="hint">Pega la configuración de tu proyecto de Firebase al principio de este archivo (busca «PEGA AQUÍ»). Los pasos están en LEEME.md.</p></div>`;return;
+}
+firebase.initializeApp(firebaseConfig);
+const auth=firebase.auth();
+const fs=firebase.firestore();
+fs.enablePersistence({synchronizeTabs:true}).catch(()=>{});
+
+/* ---------- vista pública del alumno: ?h=código ---------- */
+const params=new URLSearchParams(location.search);
+if(params.get("h")){vistaAlumno(params.get("h"));return}
+
+/* ---------- estado ---------- */
+let D={alumnos:{},config:{profesora:"",ultimaCopia:""},meses:{},solicitudes:{}};
+let uid=null,ref=null;
+const hoy=new Date();
+const S={tab:"recibos",y:hoy.getFullYear(),m:hoy.getMonth(),wk:lunes(hoy),openId:null,selDate:null,editing:null,confirmDel:false,festivosOpen:false,
+  q:"",filtro:"todos",sel:new Set(),selMode:false,qa:"",cargado:{alumnos:false,meses:false,config:false},online:navigator.onLine};
+function lunes(dt){const d=new Date(dt.getFullYear(),dt.getMonth(),dt.getDate());d.setDate(d.getDate()-wdOf(d));return d}
+function mes(y,m){const k=keyOf(y,m);const x=D.meses[k]||(D.meses[k]={});x.dias=x.dias||{};x.horaExtra=x.horaExtra||{};x.festivos=x.festivos||[];x.pagado=x.pagado||{};return x}
+window.addEventListener("online",()=>{S.online=true;renderSync()});
+window.addEventListener("offline",()=>{S.online=false;renderSync()});
+
+/* ---------- acceso ---------- */
+let unsubs=[];
+auth.onAuthStateChanged(u=>{
+  unsubs.forEach(f=>f());unsubs=[];
+  if(!u){uid=null;pantallaLogin();return}
+  uid=u.uid;ref=fs.collection("users").doc(uid);
+  D={alumnos:{},config:{profesora:"",ultimaCopia:""},meses:{},solicitudes:{}};S.cargado={alumnos:false,meses:false,config:false};
+  $("app").innerHTML=`<div class="loading">Cargando tus alumnos…</div>`;
+  unsubs.push(ref.collection("alumnos").onSnapshot(s=>{const a={};s.forEach(d=>a[d.id]=d.data());D.alumnos=a;S.cargado.alumnos=true;remoto()},e=>errorDatos(e)));
+  unsubs.push(ref.collection("meses").onSnapshot(s=>{const m={};s.forEach(d=>m[d.id]=d.data());D.meses=Object.assign(m,pendientesMes());S.cargado.meses=true;remoto()},e=>errorDatos(e)));
+  unsubs.push(ref.collection("config").doc("general").onSnapshot(d=>{if(d.exists)D.config=Object.assign({profesora:"",ultimaCopia:""},d.data());S.cargado.config=true;remoto()},()=>{S.cargado.config=true;remoto()}));
+  unsubs.push(fs.collection("solicitudes").where("owner","==",uid).onSnapshot(s=>{
+    const o={};s.forEach(d=>o[d.id]=Object.assign({id:d.id},d.data()));const prev=D.solicitudes;D.solicitudes=o;
+    const ch=new Set();for(const id in o)if(!prev[id]||prev[id].estado!==o[id].estado)ch.add(o[id].alumnoId);
+    if(S.cargado.alumnos){const l=[...ch].filter(x=>D.alumnos[x]);if(l.length)publicarHorarios(l);limpiarSolicitudes()}
+    remoto()},e=>console.error(e)));
+});
+function errorDatos(e){console.error(e);$("app").innerHTML=`<div class="login"><h1>No se pueden leer los datos</h1><p class="hint">Revisa que las reglas de Firestore estén publicadas (LEEME.md, paso 4).</p><button class="btn" data-act="salir">Salir</button></div>`}
+function pantallaLogin(){
+  $("sheet").hidden=true;$("selbar").hidden=true;
+  $("app").innerHTML=`<form class="login" id="fLogin"><div><div class="label">Clases particulares</div><h1>Recibos</h1></div>
+    <div class="field"><label class="label" for="lEmail">Correo</label><input id="lEmail" type="email" autocomplete="username" required></div>
+    <div class="field"><label class="label" for="lPass">Contraseña</label><input id="lPass" type="password" autocomplete="current-password" required></div>
+    <p class="err" id="lErr" hidden></p>
+    <button class="btn primary" type="submit">Entrar</button>
+    <button class="btn ghost" type="button" data-act="olvido">He olvidado la contraseña</button></form>`;
+}
+
+/* ---------- guardado en la nube ---------- */
+const pend={};      // meses escritos aquí y aún no confirmados (evita que un snapshot viejo pise un cambio)
+function pendientesMes(){const o={};for(const k in pend)o[k]=D.meses[k];return o}
+function fallo(e){console.error(e);toast("No se pudo guardar. Se intentará de nuevo con conexión.")}
+function saveAlumno(a){D.alumnos[a.id]=a;ref.collection("alumnos").doc(a.id).set(a).catch(fallo);publicarHorarios([a.id])}
+function deleteAlumno(id){const a=D.alumnos[id];delete D.alumnos[id];ref.collection("alumnos").doc(id).delete().catch(fallo);if(a&&a.token)fs.collection("horarios").doc(a.token).delete().catch(()=>{})}
+function saveMes(k,ids){pend[k]=(pend[k]||0)+1;ref.collection("meses").doc(k).set(clone(D.meses[k])).catch(fallo).finally(()=>{if(--pend[k]<=0)delete pend[k]});if(ids)publicarHorarios(ids)}
+let cfgT;function saveConfig(){clearTimeout(cfgT);cfgT=setTimeout(()=>ref.collection("config").doc("general").set(clone(D.config)).catch(fallo),600)}
+
+/* horario público de cada alumno: horarios/{código} */
+let pubIds=new Set(),pubT;
+function publicarHorarios(ids){(ids==="todos"?Object.keys(D.alumnos):ids).forEach(i=>pubIds.add(i));clearTimeout(pubT);pubT=setTimeout(()=>{const l=[...pubIds];pubIds.clear();l.forEach(publicarUno)},1200)}
+function publicarUno(id){
+  const a=D.alumnos[id];if(!a||!a.token)return;
+  const r=fs.collection("horarios").doc(a.token);
+  if(a.activo===false){r.delete().catch(()=>{});return}
+  const h=new Date();const clases=[];
+  for(let k=0;k<2;k++){const y=h.getFullYear()+Math.floor((h.getMonth()+k)/12),m=(h.getMonth()+k)%12;const c=calc(a,y,m);
+    for(const x of diasDelMes(y,m)){const p=c.porDia[x.iso];if(p.h>0)clases.push({f:x.iso,t:p.t||"",fin:p.t?finHora(p.t,p.h):"",h:p.h,extra:p.tipo==="extra"})}}
+  const lim=isoOf(new Date(Date.now()-45*864e5));
+  const pets=Object.values(D.solicitudes).filter(x=>x.alumnoId===id&&x.creada>=lim).sort((x,y)=>y.creada.localeCompare(x.creada)).slice(0,10).map(x=>({id:x.id,f:x.f,t:x.t||"",h:x.h,estado:x.estado}));
+  r.set({owner:uid,alumnoId:id,solicitudes:pets,nombre:a.nombre,normal:horarioTxt(a),horas:a.horas||1,profesora:D.config.profesora||"",clases,actualizado:new Date().toISOString()}).catch(e=>console.error(e));
+}
+
+/* ---------- peticiones de clase de los alumnos ---------- */
+const pendientes=()=>Object.values(D.solicitudes).filter(x=>x.estado==="pendiente").sort((a,b)=>(a.f+a.t).localeCompare(b.f+b.t));
+let limpiado=false;
+function limpiarSolicitudes(){if(limpiado)return;limpiado=true;const lim=new Date(Date.now()-60*864e5).toISOString();
+  Object.values(D.solicitudes).forEach(x=>{if(x.estado!=="pendiente"&&x.creada<lim)fs.collection("solicitudes").doc(x.id).delete().catch(()=>{})})}
+function fechaLarga(iso){const dt=new Date(iso+"T12:00");return DIAS_SG[wdOf(dt)]+" "+dt.getDate()+" de "+MESES[dt.getMonth()]}
+function choques(sol){
+  const dt=new Date(sol.f+"T12:00");const mm=mes(dt.getFullYear(),dt.getMonth());const wd=wdOf(dt);
+  const ini=sol.t?toMin(sol.t):null,fin=ini!=null?ini+sol.h*60:null;const out=[];
+  for(const a of activos()){const p=infoDia(a,sol.f,wd,mm);if(p.h<=0)continue;
+    if(a.id===sol.alumnoId){out.push("Ese día ya tiene clase"+(p.t?" a las "+p.t:""));continue}
+    if(ini==null||!p.t)continue;const i2=toMin(p.t),f2=i2+p.h*60;if(ini<f2&&i2<fin)out.push("Coincide con "+a.nombre+" ("+p.t+"–"+finHora(p.t,p.h)+")")}
+  if(mm.festivos.includes(sol.f))out.push("Lo tienes marcado como día sin clase");
+  return out;
+}
+const toMin=t=>{const [H,M]=t.split(":").map(Number);return H*60+M};
+function htmlSolicitudes(){
+  const l=pendientes();if(!l.length)return "";
+  return `<div class="section" style="margin-top:0;margin-bottom:18px"><h3>Peticiones de clase <span class="badge">${l.length}</span></h3><div class="reqs">${l.map(x=>{
+    const a=D.alumnos[x.alumnoId];const av=a?choques(x):["Este alumno ya no está en la lista"];
+    return `<div class="req"><span class="who">${esc(a?a.nombre:x.nombre)}</span>
+      <span class="when">${fechaLarga(x.f)} · ${x.t?x.t+"–"+finHora(x.t,x.h):""} (${hrs(x.h)})</span>
+      ${x.nota?`<span class="nota">«${esc(x.nota)}»</span>`:""}
+      ${av.map(t=>`<span class="aviso">${esc(t)}</span>`).join("")}
+      <div class="btns"><button class="btn okb" data-acept="${x.id}" ${a?"":"disabled"}>Aceptar</button><button class="btn ghost" data-rech="${x.id}">Rechazar</button></div></div>`}).join("")}</div></div>`;
+}
+function responder(id,ok){
+  const x=D.solicitudes[id];if(!x)return;
+  if(ok){const a=D.alumnos[x.alumnoId];if(!a)return;const dt=new Date(x.f+"T12:00");const y=dt.getFullYear(),m=dt.getMonth(),wd=wdOf(dt);const mm=mes(y,m);
+    const p=infoDia(a,x.f,wd,mm);const normal=p.habitual&&!p.fest?(a.horas||1):0;const ov={...(mm.dias[a.id]||{})};
+    if(x.h===normal)delete ov[x.f];else ov[x.f]=x.h;mm.dias[a.id]=ov;
+    mm.horaExtra[a.id]=mm.horaExtra[a.id]||{};if(x.t&&x.t!==(a.hora||{})[wd])mm.horaExtra[a.id][x.f]=x.t;else delete mm.horaExtra[a.id][x.f];
+    saveMes(keyOf(y,m),[a.id]);}
+  x.estado=ok?"aceptada":"rechazada";
+  fs.collection("solicitudes").doc(id).update({estado:x.estado,respondida:new Date().toISOString()}).catch(fallo);
+  publicarHorarios([x.alumnoId]);render();toast(ok?"Clase añadida al horario":"Petición rechazada");
+}
+
+/* ---------- cálculo ---------- */
+function diasDelMes(y,m){const n=new Date(y,m+1,0).getDate();const out=[];for(let d=1;d<=n;d++){const dt=new Date(y,m,d);out.push({d,iso:isoOf(dt),wd:wdOf(dt)})}return out}
+function infoDia(a,iso,wd,mm){
+  const ov=mm.dias[a.id]||{};const fest=mm.festivos.includes(iso);const habitual=(a.dias||[]).includes(wd);let h,tipo;
+  if(has(ov,iso)){h=ov[iso];tipo=h===0?(habitual&&!fest?"missed":(fest?"holiday":"none")):(habitual&&!fest?"habit":"extra")}
+  else if(fest){h=0;tipo="holiday"}else if(habitual){h=a.horas||1;tipo="habit"}else{h=0;tipo="none"}
+  const t=((mm.horaExtra[a.id]||{})[iso])||((a.hora||{})[wd])||"";
+  return {h,tipo,habitual,fest,t,override:has(ov,iso)};
+}
+function calc(a,y=S.y,m=S.m){
+  const mm=mes(y,m);let horas=0,clases=0;const lineas=[];const porDia={};
+  for(const x of diasDelMes(y,m)){const p=infoDia(a,x.iso,x.wd,mm);porDia[x.iso]=p;
+    if(p.h>0){horas+=p.h;clases++;lineas.push(x.d+(p.h!==(a.horas||1)?" ("+hrs(p.h)+")":"")+(p.tipo==="extra"?"*":""))}}
+  return {horas,clases,importe:Math.round(horas*(a.precio||0)*100)/100,lineas,porDia};
+}
+const activos=()=>Object.values(D.alumnos).filter(a=>a.activo!==false).sort((a,b)=>a.nombre.localeCompare(b.nombre,"es"));
+function numRecibo(a){const i=activos().findIndex(x=>x.id===a.id)+1;return S.y+"/"+pad(S.m+1)+"-"+pad(i||0)}
+function horarioTxt(a){const d=(a.dias||[]).slice().sort();if(!d.length)return "Sin días fijos";
+  return d.map(i=>DIAS_PL[i]+((a.hora||{})[i]?" "+a.hora[i]:"")).join(", ").replace(/, ([^,]*)$/," y $1")}
+function fmtFecha(iso){const [y,m,d]=iso.split("-").map(Number);return d+" de "+MESES[m-1]+" de "+y}
+function ultimoDia(){return new Date(S.y,S.m+1,0).getDate()+" de "+MESES[S.m]+" de "+S.y}
+function textoRecibo(a){
+  const c=calc(a);const mm=mes(S.y,S.m);
+  const t=["RECIBO Nº "+numRecibo(a),"","Alumno/a: "+a.nombre,"Mes: "+MESES[S.m]+" de "+S.y,"Clases: "+c.clases+" días, "+hrs(c.horas)+" × "+eur(a.precio||0)+"/h","Días: "+(c.lineas.join(", ")||"—")];
+  if(c.lineas.some(l=>l.endsWith("*")))t.push("(* día extra)");
+  t.push("","TOTAL: "+eur(c.importe));if(mm.pagado[a.id])t.push("PAGADO el "+fmtFecha(mm.pagado[a.id]));
+  t.push("",(D.config.profesora?D.config.profesora+" · ":"")+ultimoDia());return t.join("\n");
+}
+function enlaceHorario(a){return location.origin+location.pathname+"?h="+a.token}
+
+/* ---------- lista de recibos: buscador, filtro y selección ---------- */
+function listaFiltrada(){
+  const mm=mes(S.y,S.m);const q=norm(S.q).trim();
+  return activos().filter(a=>(!q||norm(a.nombre).includes(q))&&(S.filtro==="todos"||(S.filtro==="pagados")===!!mm.pagado[a.id]));
+}
+function htmlLista(){
+  const mm=mes(S.y,S.m);const l=listaFiltrada();
+  if(!l.length)return `<div class="noresults">Ningún alumno coincide${S.q?" con «"+esc(S.q)+"»":""}.</div>`;
+  return l.map(a=>{const c=calc(a);const p=mm.pagado[a.id];const on=S.sel.has(a.id);
+    return `<button class="row${on?" on":""}" data-${S.selMode?"pick":"open"}="${a.id}" aria-pressed="${S.selMode?on:"false"}">
+      ${S.selMode?'<span class="check" aria-hidden="true">✓</span>':""}
+      <span class="name">${esc(a.nombre)}</span><span class="amt">${eur(c.importe)}</span>
+      <span class="meta num">${c.clases} días · ${hrs(c.horas)} · ${eur(a.precio||0)}/h</span>
+      <span class="pill ${p?"ok":"warn"}">${p?"Pagado":"Pendiente"}</span></button>`}).join("");
+}
+function renderLista(){const el=$("lista");if(el){el.innerHTML=htmlLista();el.classList.toggle("selmode",S.selMode)}renderSelbar()}
+function renderSelbar(){
+  const bar=$("selbar");const show=S.tab==="recibos"&&S.selMode&&!S.openId&&!S.editing&&!S.festivosOpen;bar.hidden=!show;
+  document.body.style.paddingBottom=show?"150px":"";
+  if(!show)return;const n=S.sel.size;
+  bar.innerHTML=`<div class="in"><span class="count">${n?n+(n>1?" alumnos seleccionados":" alumno seleccionado"):"Toca los alumnos que quieras"}</span>
+    <button class="btn primary" data-act="selPrint" ${n?"":"disabled"}>Imprimir</button><button class="btn" data-act="selPdf" ${n?"":"disabled"}>PDF</button>
+    <button class="btn" data-act="selPagar" ${n?"":"disabled"}>Marcar pagados</button><button class="btn" data-act="selFin">Listo</button></div>`;
+}
+const seleccionados=()=>activos().filter(a=>S.sel.has(a.id));
+
+/* ---------- pantallas ---------- */
+function remoto(){
+  if(!S.cargado.alumnos||!S.cargado.meses||!S.cargado.config)return;
+  if(!$("view")){montar();return}
+  const ae=document.activeElement;const typing=ae&&/^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName);
+  if(S.editing)return;
+  if(typing){if(ae.id==="q")renderLista();return}
+  render();
+}
+function montar(){
+  $("app").innerHTML=`<header class="top"><div><div class="label">Clases particulares</div><h1>Recibos</h1></div>
+    <div class="tabs" role="tablist"><button role="tab" id="tab-recibos">Recibos</button><button role="tab" id="tab-horario">Horario</button><button role="tab" id="tab-alumnos">Alumnos</button></div></header>
+    <main id="view"></main><p class="sync" id="sync"></p>`;
+  render();
+  const hoyIso=isoOf(new Date());   // una vez al día se actualizan los horarios públicos (mes actual y siguiente)
+  if(D.config.publicado!==hoyIso&&Object.keys(D.alumnos).length){D.config.publicado=hoyIso;saveConfig();publicarHorarios("todos")}
+}
+function renderSync(){const el=$("sync");if(!el)return;el.className="sync"+(S.online?"":" off");el.innerHTML=S.online?"<i></i>Guardado en la nube":"<i></i>Sin conexión: los cambios se suben al volver internet"}
+function render(){
+  if(!$("view"))return;
+  for(const t of ["recibos","horario","alumnos"])$("tab-"+t).setAttribute("aria-selected",S.tab===t);
+  const np=pendientes().length;$("tab-horario").innerHTML="Horario"+(np?`<span class="badge">${np}</span>`:"");
+  $("app").classList.toggle("wide-ok",S.tab==="horario");
+  $("view").innerHTML=S.tab==="recibos"?viewRecibos():S.tab==="horario"?viewHorario():viewAlumnos();
+  renderSync();renderSheet();renderSelbar();
+}
+function monthNav(tag="h2"){return `<div class="month"><button class="iconbtn" data-act="prev" aria-label="Mes anterior">‹</button><${tag}>${MESES[S.m]} ${S.y}</${tag}><button class="iconbtn" data-act="next" aria-label="Mes siguiente">›</button></div>`}
+function viewRecibos(){
+  const lista=activos();
+  if(!lista.length)return monthNav()+`<div class="empty"><strong>Todavía no hay alumnos</strong>Añade a cada alumno con sus días de clase y su precio por hora. Si ya usabas la versión anterior, recupera tu copia en Alumnos › Copia de seguridad.<div class="btns" style="margin-top:14px;justify-content:center"><button class="btn primary" data-act="nuevo">Añadir alumno</button>${localAntiguo()?'<button class="btn" data-act="importarLocal">Traer datos de este móvil</button>':""}</div></div>`;
+  const mm=mes(S.y,S.m);let tot=0,cob=0,np=0;
+  lista.forEach(a=>{const c=calc(a);tot+=c.importe;if(mm.pagado[a.id])cob+=c.importe;else np++});
+  const f=(k,l)=>`<button class="chip small" data-filtro="${k}" aria-pressed="${S.filtro===k}">${l}</button>`;
+  const npet=pendientes().length;
+  return (npet?`<button class="banner" data-act="verPet"><span>${npet===1?"Tienes 1 petición de clase":"Tienes "+npet+" peticiones de clase"}</span><span>Ver ›</span></button>`:"")+monthNav()+`<div class="summary"><div><div class="label">Total mes</div><div class="v">${eur(tot)}</div></div>
+      <div><div class="label">Cobrado</div><div class="v ok">${eur(cob)}</div></div>
+      <div><div class="label">Pendiente</div><div class="v warn">${eur(tot-cob)}</div></div></div>
+    <div class="tools"><label class="search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input id="q" type="search" placeholder="Buscar alumno" value="${esc(S.q)}" autocomplete="off" aria-label="Buscar alumno"></label>
+      <div class="filters">${f("todos","Todos ("+lista.length+")")}${f("pendientes","Pendientes ("+np+")")}${f("pagados","Pagados ("+(lista.length-np)+")")}<span class="spacer"></span>
+      ${S.selMode?`<button class="chip small" data-act="selTodos">Marcar los que se ven</button>`:`<button class="chip small" data-act="selIni">Seleccionar varios</button>`}</div></div>
+    <div class="list${S.selMode?" selmode":""}" id="lista">${htmlLista()}</div>
+    <div class="section"><button class="btn ghost wide" data-act="festivos">Días sin clase este mes${mm.festivos.length?" ("+mm.festivos.length+")":""}</button>
+    <p class="hint">Toca un alumno para ver su calendario y su recibo. Con «Seleccionar varios» imprimes o sacas el PDF de varios a la vez.</p></div>`;
+}
+function viewHorario(){
+  const dias=[...Array(7)].map((_,i)=>{const d=new Date(S.wk);d.setDate(d.getDate()+i);return d});
+  const fin=dias[6];const hoyIso=isoOf(new Date());
+  const tit=dias[0].getDate()+(dias[0].getMonth()!==fin.getMonth()?" "+MESES[dias[0].getMonth()].slice(0,3):"")+" – "+fin.getDate()+" "+MESES[fin.getMonth()];
+  const al=activos();
+  const bloques=dias.map((d,i)=>{const iso=isoOf(d);const mm=mes(d.getFullYear(),d.getMonth());
+    const items=al.map(a=>({a,p:infoDia(a,iso,i,mm)})).filter(x=>x.p.h>0).sort((x,y)=>(x.p.t||"99").localeCompare(y.p.t||"99"));
+    if(i>=5&&!items.length)return "";const fest=mm.festivos.includes(iso);
+    const slots=items.length?items.map(({a,p})=>`<button class="slot" data-open="${a.id}" data-month="${iso}" style="width:100%;text-align:left;background:none;border-left:0;border-right:0;border-bottom:0">
+        <span class="t">${p.t?p.t+"–"+finHora(p.t,p.h):hrs(p.h)}</span><span class="n">${esc(a.nombre)}</span>${p.tipo==="extra"?'<span class="tag">extra</span>':"<span></span>"}</button>`).join("")
+      :`<div class="slot none">${fest?"Festivo":"Sin clases"}</div>`;
+    return `<section class="wday${iso===hoyIso?" today":""}${fest?" holi":""}"><h3><span>${DIAS_SG[i]} ${d.getDate()}</span><span class="hint" style="text-transform:none">${items.length?items.length+(items.length>1?" clases":" clase"):""}</span></h3>${slots}</section>`}).join("");
+  return htmlSolicitudes()+`<div class="month"><button class="iconbtn" data-act="wprev" aria-label="Semana anterior">‹</button><h2 class="num" style="text-transform:none">${tit}</h2><button class="iconbtn" data-act="wnext" aria-label="Semana siguiente">›</button></div>
+    <div class="week">${bloques}</div>
+    <div class="section"><button class="btn ghost" data-act="whoy">Ir a esta semana</button>
+    <p class="hint">Cada alumno tiene un enlace para ver sus propias clases. Lo copias desde su ficha con «Copiar enlace del horario».</p></div>`;
+}
+function viewAlumnos(){
+  const q=norm(S.qa).trim();
+  const todos=Object.values(D.alumnos).filter(a=>!q||norm(a.nombre).includes(q)).sort((a,b)=>(a.activo===false)-(b.activo===false)||a.nombre.localeCompare(b.nombre,"es"));
+  const rows=todos.map(a=>`<button class="row" data-edit="${a.id}"><span class="name">${esc(a.nombre)}</span>
+      <span class="amt">${eur(a.precio||0)}<span class="hint">/h</span></span><span class="meta">${esc(horarioTxt(a))} · ${hrs(a.horas||1)}</span>
+      ${a.activo===false?'<span class="pill warn">De baja</span>':"<span></span>"}</button>`).join("");
+  const uc=D.config.ultimaCopia;
+  return `<div class="tools"><div class="btns"><button class="btn primary" data-act="nuevo">+ Añadir alumno</button></div>
+    ${Object.keys(D.alumnos).length>6?`<label class="search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="qa" type="search" placeholder="Buscar alumno" value="${esc(S.qa)}" autocomplete="off" aria-label="Buscar alumno"></label>`:""}</div>
+    <div class="list" id="listaAlumnos">${rows||'<div class="empty"><strong>Sin alumnos</strong>Pulsa «Añadir alumno» para empezar.</div>'}</div>
+    <div class="section"><h3>Tus datos para el recibo</h3>
+      <div class="field"><label class="label" for="profesora">Nombre que firma el recibo</label><input id="profesora" value="${esc(D.config.profesora)}" placeholder="Tu nombre y apellidos"></div></div>
+    <div class="section"><h3>Copia de seguridad</h3>
+      <div class="card"><p class="hint">Los datos ya están guardados en la nube. Esta copia es un extra por si acaso, o para traer los datos de la versión anterior.</p>
+      <p class="hint"><strong>Última copia:</strong> ${uc?fmtFecha(uc):"ninguna todavía"}</p>
+      <div class="btns"><button class="btn" data-act="backup">Guardar copia</button><button class="btn ghost" data-act="restore">Recuperar una copia</button>${localAntiguo()?'<button class="btn ghost" data-act="importarLocal">Traer datos de este móvil</button>':""}</div></div></div>
+    <div class="section"><p class="hint">Has entrado como ${esc(auth.currentUser&&auth.currentUser.email)}</p><div class="btns"><button class="btn ghost" data-act="salir">Salir</button></div></div>`;
+}
+function calendario(porDia,{festivos=false}={}){
+  const dias=diasDelMes(S.y,S.m);const fest=new Set(mes(S.y,S.m).festivos);
+  let h=DIAS_CORTO.map(d=>`<div class="wd">${d}</div>`).join("");
+  for(let i=0;i<dias[0].wd;i++)h+=`<div class="day blank"></div>`;
+  for(const x of dias){let cls="day",lab="";
+    if(festivos){if(fest.has(x.iso)){cls+=" holiday";lab="festivo"}}
+    else{const p=porDia[x.iso];
+      if(p.tipo==="habit"){cls+=" habit";lab=hrs(p.h)}else if(p.tipo==="extra"){cls+=" extra";lab="+"+hrs(p.h)}
+      else if(p.tipo==="missed"){cls+=" missed";lab="falta"}else if(p.tipo==="holiday"){cls+=" holiday";lab="festivo"}
+      if(S.selDate===x.iso)cls+=" sel";}
+    h+=`<button class="${cls}" data-day="${x.iso}" aria-label="${x.d} de ${MESES[S.m]}"><span class="d">${x.d}</span><span class="h">${lab}</span></button>`}
+  return `<div class="cal">${h}</div>`;
+}
+function renderSheet(){
+  const sh=$("sheet");let html="";
+  if(S.openId&&D.alumnos[S.openId])html=sheetAlumnoMes(D.alumnos[S.openId]);
+  else if(S.editing)html=sheetEditar();
+  else if(S.festivosOpen)html=sheetFestivos();
+  if(html){const st=sh.scrollTop;$("sheetBody").innerHTML=html;sh.scrollTop=st}
+  sh.hidden=!html;document.body.style.overflow=html?"hidden":"";
+}
+function sheetAlumnoMes(a){
+  const c=calc(a);const mm=mes(S.y,S.m);const pag=mm.pagado[a.id];let editor;
+  if(S.selDate&&c.porDia[S.selDate]){const p=c.porDia[S.selDate];const d=Number(S.selDate.slice(8));const wd=wdOf(new Date(S.selDate+"T12:00"));
+    const opts=[[0,p.habitual?"Falta":"Sin clase"],[1,"1 h"],[1.5,"1,5 h"],[2,"2 h"],[2.5,"2,5 h"],[3,"3 h"]];
+    editor=`<div class="card"><div><strong>${DIAS_SG[wd]} ${d} de ${MESES[S.m]}</strong> <span class="hint">· ${p.habitual?"día habitual":"día fuera de su horario"}</span></div>
+      <div class="chips">${opts.map(([v,l])=>`<button class="chip" data-set="${v}" aria-pressed="${p.h===v}">${l}</button>`).join("")}</div>
+      ${p.h>0?`<div class="dayrow"><label class="label" for="horaDia">Hora</label><input class="mono" type="time" id="horaDia" value="${p.t}" style="background:var(--sheet);border:1px solid var(--line);border-radius:12px;padding:8px 10px;min-height:44px"></div>`:""}
+      ${p.override||has(mm.horaExtra[a.id],S.selDate)?`<button class="btn ghost" data-set="reset">Volver a lo normal</button>`:""}</div>`}
+  else editor=`<p class="hint">Toca un día para cambiarlo: día extra, clase de 2 horas o falta.</p>`;
+  return `<div class="sheet-head"><button class="iconbtn" data-act="close" aria-label="Volver">←</button><h2>${esc(a.nombre)}</h2><button class="btn ghost" data-edit="${a.id}">Editar</button></div>
+    <p class="hint" style="margin-bottom:6px">${esc(horarioTxt(a))} · ${hrs(a.horas||1)} · ${eur(a.precio||0)}/h</p>
+    ${monthNav("h3")}${calendario(c.porDia)}
+    <div class="legend" style="margin-top:8px"><span><i style="background:var(--accent-soft)"></i>Habitual</span><span><i style="background:var(--accent)"></i>Extra</span><span><i></i>Falta</span><span><i style="background:repeating-linear-gradient(135deg,var(--hatch) 0 3px,var(--sheet) 3px 6px)"></i>Festivo</span></div>
+    <div class="section">${editor}</div>
+    <div class="section"><div class="label">Recibo</div>
+      <div class="receipt"><div class="rh"><b>RECIBO</b><span>Nº ${numRecibo(a)}</span></div>
+        <div>Alumno/a: <strong>${esc(a.nombre)}</strong></div><div>Mes: ${MESES[S.m]} de ${S.y}</div>
+        <div class="num">${c.clases} días · ${hrs(c.horas)} × ${eur(a.precio||0)}/h</div>
+        <div class="detail">Días: ${esc(c.lineas.join(", ")||"—")}${c.lineas.some(l=>l.endsWith("*"))?"<br>* día extra":""}</div>
+        <div class="total"><span>TOTAL</span><span class="num">${eur(c.importe)}</span></div>
+        ${pag?`<div class="stamp">PAGADO · ${fmtFecha(pag)}</div>`:""}
+        <div class="hint" style="margin-top:10px;font-family:var(--f-body)">${esc(D.config.profesora||"Pon tu nombre en Alumnos › Tus datos")}</div></div>
+      <div class="btns"><button class="btn primary" data-act="print">Imprimir</button><button class="btn" data-act="pdf">Descargar PDF</button><button class="btn" data-act="copiar">Copiar para WhatsApp</button></div>
+      <button class="btn ${pag?"ghost":"okb"}" data-act="pagar">${pag?"Quitar «pagado»":"Marcar como pagado"}</button>
+      <div id="copyFallback"></div></div>
+    <div class="section"><div class="label">Horario del alumno</div>
+      <div class="card"><p class="hint">Con este enlace el alumno ve sus próximas clases, sin poder cambiar nada. Se actualiza solo cuando apuntas cambios.</p>
+      <p class="mono" style="margin:0;overflow-wrap:anywhere;font-size:.82rem;user-select:all">${esc(enlaceHorario(a))}</p>
+      <div class="btns"><button class="btn" data-act="copiarEnlace">Copiar enlace del horario</button><button class="btn ghost" data-act="nuevoEnlace">Cambiar enlace</button></div></div>
+      ${a.telefono?`<p class="hint">Teléfono: <span class="mono">${esc(a.telefono)}</span></p>`:""}</div>`;
+}
+function sheetEditar(){
+  const a=S.editing;const nuevo=!D.alumnos[a.id];a.hora=a.hora||{};
+  const horasDias=(a.dias||[]).slice().sort().map(i=>`<div class="dayrow"><label class="label" for="fh${i}" style="min-width:90px">${DIAS_SG[i]}</label><input type="time" id="fh${i}" data-hora="${i}" value="${a.hora[i]||""}"></div>`).join("");
+  return `<div class="sheet-head"><button class="iconbtn" data-act="cancel" aria-label="Cancelar">←</button><h2>${nuevo?"Nuevo alumno":"Editar alumno"}</h2></div>
+  <form id="fAlumno" class="section" autocomplete="off">
+    <div class="field"><label class="label" for="fNombre">Nombre</label><input id="fNombre" required value="${esc(a.nombre)}" placeholder="Ej.: Elena García"></div>
+    <div class="field"><span class="label">Días que viene normalmente</span>
+      <div class="chips">${DIAS_CORTO.map((d,i)=>`<button type="button" class="chip" data-wd="${i}" aria-pressed="${(a.dias||[]).includes(i)}" aria-label="${DIAS_PL[i]}">${d}</button>`).join("")}</div></div>
+    ${horasDias?`<div class="field"><span class="label">Hora de entrada</span><div class="list" style="gap:8px">${horasDias}</div></div>`:""}
+    <div class="grid2"><div class="field"><label class="label" for="fHoras">Horas por clase</label>
+        <select id="fHoras">${[1,1.5,2,2.5,3].map(v=>`<option value="${v}" ${a.horas===v?"selected":""}>${hrs(v)}</option>`).join("")}</select></div>
+      <div class="field"><label class="label" for="fPrecio">Precio por hora (€)</label><input id="fPrecio" type="number" inputmode="decimal" step="0.5" min="0" value="${a.precio}"></div></div>
+    <div class="field"><label class="label" for="fTel">Teléfono (opcional)</label><input id="fTel" type="tel" value="${esc(a.telefono||"")}" placeholder="Para tenerlo a mano"></div>
+    ${nuevo?"":`<label style="display:flex;gap:10px;align-items:center"><input type="checkbox" id="fActivo" ${a.activo!==false?"checked":""} style="width:22px;height:22px"> Sigue viniendo a clase</label>`}
+    <div class="btns"><button class="btn primary" type="submit">Guardar</button><button class="btn ghost" type="button" data-act="cancel">Cancelar</button></div>
+    ${nuevo?"":(S.confirmDel?`<div class="confirm"><strong>¿Borrar a ${esc(a.nombre)} para siempre?</strong><span class="hint">Si solo ha dejado las clases, mejor desmarca «Sigue viniendo» y se conservan sus recibos.</span><div class="btns"><button class="btn danger" type="button" data-act="borrarSi">Sí, borrar</button><button class="btn ghost" type="button" data-act="borrarNo">No</button></div></div>`:`<button class="btn danger" type="button" data-act="borrar">Borrar alumno</button>`)}
+  </form>`;
+}
+function sheetFestivos(){
+  return `<div class="sheet-head"><button class="iconbtn" data-act="close" aria-label="Volver">←</button><h2>Días sin clase</h2></div>
+  ${monthNav("h3")}<p class="hint" style="margin-bottom:10px">Marca festivos o días que no das clase. Ese día no se cobra a nadie (salvo que lo cambies en un alumno).</p>
+  ${calendario(null,{festivos:true})}`;
+}
+
+/* ---------- imprimir y PDF ---------- */
+function htmlImpresion(a){
+  const c=calc(a);const pag=mes(S.y,S.m).pagado[a.id];
+  return `<div class="pr"><div class="top"><h1>RECIBO</h1><span class="n">Nº ${numRecibo(a)}</span></div>
+    <table><tr><td>Alumno/a</td><td><strong>${esc(a.nombre)}</strong></td></tr><tr><td>Concepto</td><td>Clases particulares de ${MESES[S.m]} de ${S.y}</td></tr>
+    <tr><td>Clases</td><td>${c.clases} días · ${hrs(c.horas)} × ${eur(a.precio||0)}/h</td></tr>
+    <tr><td>Días</td><td>${esc(c.lineas.join(", ")||"—")}${c.lineas.some(l=>l.endsWith("*"))?"<br><small>* día extra</small>":""}</td></tr></table>
+    <div class="tot"><span>TOTAL</span><span>${eur(c.importe)}</span></div>${pag?`<div class="pagado">PAGADO · ${fmtFecha(pag)}</div>`:""}
+    <div class="firma"><div>${esc(D.config.profesora||"Firma")}</div><div>${ultimoDia()}</div></div></div>`;
+}
+function imprimir(lista){if(!lista.length)return;$("printArea").innerHTML=lista.map(htmlImpresion).join("");setTimeout(()=>window.print(),50)}
+function pdf(lista,nombre){
+  if(!window.jspdf){toast("Para el PDF hace falta internet. Prueba «Imprimir» › Guardar como PDF");return}
+  const doc=new window.jspdf.jsPDF({format:"a5",unit:"mm"});const W=148,M=14;
+  lista.forEach((a,i)=>{if(i)doc.addPage();const c=calc(a);const pag=mes(S.y,S.m).pagado[a.id];let y=20;
+    doc.setFont("helvetica","bold");doc.setFontSize(20);doc.text("RECIBO",M,y);
+    doc.setFont("courier","normal");doc.setFontSize(10);doc.text("Nº "+numRecibo(a),W-M,y,{align:"right"});
+    y+=4;doc.setLineWidth(.5);doc.line(M,y,W-M,y);y+=9;
+    const fila=(k,v)=>{doc.setFont("helvetica","normal");doc.setFontSize(10);doc.setTextColor(90);doc.text(k,M,y);doc.setTextColor(0);doc.setFontSize(11);
+      const ls=doc.splitTextToSize(v,W-M-48);doc.text(ls,M+38,y);y+=ls.length*5.2+2.5};
+    fila("Alumno/a",a.nombre);fila("Concepto","Clases particulares de "+MESES[S.m]+" de "+S.y);
+    fila("Clases",c.clases+" días · "+hrs(c.horas)+" × "+eur(a.precio||0)+"/h");
+    fila("Días",(c.lineas.join(", ")||"—")+(c.lineas.some(l=>l.endsWith("*"))?"  (* día extra)":""));
+    y+=2;doc.setLineDashPattern([1,1],0);doc.setLineWidth(.3);doc.line(M,y,W-M,y);y+=8;
+    doc.setFont("helvetica","bold");doc.setFontSize(15);doc.text("TOTAL",M,y);doc.text(eur(c.importe),W-M,y,{align:"right"});
+    y+=4;doc.line(M,y,W-M,y);doc.setLineDashPattern([],0);y+=10;
+    if(pag){doc.setFontSize(11);doc.setLineWidth(.6);doc.rect(M,y-5.5,62,8);doc.text("PAGADO · "+fmtFecha(pag),M+3,y);y+=10}
+    y=Math.max(y+14,150);doc.setLineWidth(.3);doc.line(M,y,M+52,y);doc.line(W-M-52,y,W-M,y);
+    doc.setFont("helvetica","normal");doc.setFontSize(9);doc.text(D.config.profesora||"Firma",M,y+5);doc.text(ultimoDia(),W-M,y+5,{align:"right"});
+  });
+  doc.save(nombre);toast("PDF descargado");
+}
+const nombreArchivo=s=>norm(s).replace(/[^\w]+/g,"-").replace(/^-|-$/g,"");
+
+/* ---------- importar datos antiguos ---------- */
+function localAntiguo(){try{const x=JSON.parse(localStorage.getItem("recibos-clases-v2")||"null");return x&&x.alumnos&&Object.values(x.alumnos).some(a=>!a.ejemplo)?x:null}catch(e){return null}}
+async function importar(x){
+  const b=fs.batch();let n=0;
+  for(const a of Object.values(x.alumnos||{})){if(a.ejemplo)continue;const al=Object.assign({},a,{token:a.token||randId(16)});delete al.ejemplo;D.alumnos[al.id]=al;b.set(ref.collection("alumnos").doc(al.id),al);n++}
+  for(const [k,v] of Object.entries(x.meses||{})){const m=clone(v);for(const f of ["dias","horaExtra","pagado"])for(const id in (m[f]||{}))if(String(id).startsWith("ej-"))delete m[f][id];D.meses[k]=m;b.set(ref.collection("meses").doc(k),m)}
+  if(x.config){D.config=Object.assign(D.config,{profesora:x.config.profesora||D.config.profesora});b.set(ref.collection("config").doc("general"),clone(D.config))}
+  await b.commit();publicarHorarios("todos");render();toast(n+" alumnos traídos a la nube");
+}
+
+/* ---------- acciones ---------- */
+function cambiarMes(d){S.m+=d;if(S.m<0){S.m=11;S.y--}if(S.m>11){S.m=0;S.y++}S.selDate=null;render()}
+function nuevoAlumno(){S.editing={id:"a"+Date.now().toString(36)+randId(4),nombre:"",dias:[],hora:{},horas:1,precio:6,telefono:"",activo:true,token:randId(16)};S.confirmDel=false;S.openId=null;render();setTimeout(()=>$("fNombre")&&$("fNombre").focus(),50)}
+function copiar(txt,okMsg){
+  const fb=()=>{const el=$("copyFallback");if(!el){toast("No se pudo copiar");return}el.innerHTML=`<p class="hint">Mantén pulsado el texto y elige «Copiar»:</p><textarea class="copybox" id="copyBox" readonly></textarea>`;$("copyBox").value=txt;$("copyBox").select()};
+  try{navigator.clipboard.writeText(txt).then(()=>toast(okMsg),fb)}catch(e){fb()}
+}
+function leerForm(){const a=S.editing;if(!a||!$("fNombre"))return;a.nombre=$("fNombre").value;a.horas=Number($("fHoras").value);a.precio=$("fPrecio").value;a.telefono=$("fTel").value;
+  document.querySelectorAll("[data-hora]").forEach(i=>{a.hora[i.dataset.hora]=i.value})}
+
+document.addEventListener("click",async e=>{
+  const t=e.target.closest("button");if(!t||t.disabled)return;
+  if(t.id&&t.id.startsWith("tab-")){S.tab=t.id.slice(4);render();return}
+  if(t.dataset.acept){t.disabled=true;responder(t.dataset.acept,true);return}
+  if(t.dataset.rech){t.disabled=true;responder(t.dataset.rech,false);return}
+  if(t.dataset.pick){const id=t.dataset.pick;S.sel.has(id)?S.sel.delete(id):S.sel.add(id);renderLista();return}
+  if(t.dataset.filtro){S.filtro=t.dataset.filtro;render();return}
+  if(t.dataset.open){if(t.dataset.month){const d=new Date(t.dataset.month+"T12:00");S.y=d.getFullYear();S.m=d.getMonth();S.selDate=t.dataset.month}else S.selDate=null;
+    S.openId=t.dataset.open;render();$("sheet").scrollTop=0;return}
+  if(t.dataset.edit){S.editing=clone(D.alumnos[t.dataset.edit]);S.openId=null;S.confirmDel=false;render();$("sheet").scrollTop=0;return}
+  if(t.dataset.wd!==undefined){leerForm();const i=Number(t.dataset.wd);const ds=S.editing.dias||[];S.editing.dias=ds.includes(i)?ds.filter(x=>x!==i):[...ds,i];renderSheet();return}
+  if(t.dataset.day){const k=keyOf(S.y,S.m);
+    if(S.festivosOpen&&!S.openId){const mm=mes(S.y,S.m);const f=new Set(mm.festivos);f.has(t.dataset.day)?f.delete(t.dataset.day):f.add(t.dataset.day);mm.festivos=[...f].sort();saveMes(k,"todos");render();return}
+    S.selDate=S.selDate===t.dataset.day?null:t.dataset.day;render();return}
+  if(t.dataset.set!==undefined){const id=S.openId,a=D.alumnos[id],mm=mes(S.y,S.m);const ov={...(mm.dias[id]||{})};
+    if(t.dataset.set==="reset"){delete ov[S.selDate];if(mm.horaExtra[id])delete mm.horaExtra[id][S.selDate]}
+    else{const v=Number(t.dataset.set);const p=calc(a).porDia[S.selDate];const normal=p.habitual&&!p.fest?(a.horas||1):0;if(v===normal)delete ov[S.selDate];else ov[S.selDate]=v}
+    mm.dias[id]=ov;saveMes(keyOf(S.y,S.m),[id]);render();return}
+  const act=t.dataset.act;
+  switch(act){
+    case "prev":cambiarMes(-1);break;
+    case "next":cambiarMes(1);break;
+    case "wprev":S.wk.setDate(S.wk.getDate()-7);render();break;
+    case "wnext":S.wk.setDate(S.wk.getDate()+7);render();break;
+    case "whoy":S.wk=lunes(new Date());render();break;
+    case "nuevo":nuevoAlumno();break;
+    case "festivos":S.festivosOpen=true;render();break;
+    case "close":S.openId=null;S.festivosOpen=false;S.selDate=null;render();break;
+    case "cancel":S.editing=null;render();break;
+    case "borrar":leerForm();S.confirmDel=true;renderSheet();break;
+    case "borrarNo":leerForm();S.confirmDel=false;renderSheet();break;
+    case "borrarSi":{const id=S.editing.id;S.editing=null;S.confirmDel=false;deleteAlumno(id);render();toast("Alumno borrado");break}
+    case "pagar":{const id=S.openId,mm=mes(S.y,S.m);if(mm.pagado[id])delete mm.pagado[id];else mm.pagado[id]=isoOf(new Date());saveMes(keyOf(S.y,S.m));render();toast(mm.pagado[id]?"Marcado como pagado":"Quitado «pagado»");break}
+    case "copiar":copiar(textoRecibo(D.alumnos[S.openId]),"Recibo copiado. Pégalo en WhatsApp.");break;
+    case "copiarEnlace":{const a=D.alumnos[S.openId];if(!a.token){a.token=randId(16);saveAlumno(a)}copiar("Hola, aquí puedes ver tus clases: "+enlaceHorario(a),"Enlace copiado. Pégalo en WhatsApp.");break}
+    case "nuevoEnlace":{const a=D.alumnos[S.openId];if(a.token)fs.collection("horarios").doc(a.token).delete().catch(()=>{});a.token=randId(16);saveAlumno(a);render();toast("Enlace nuevo creado. El anterior ya no funciona.");break}
+    case "print":imprimir([D.alumnos[S.openId]]);break;
+    case "pdf":{const a=D.alumnos[S.openId];pdf([a],"Recibo-"+nombreArchivo(a.nombre)+"-"+MESES[S.m]+"-"+S.y+".pdf");break}
+    case "selIni":S.selMode=true;S.sel.clear();render();break;
+    case "selTodos":listaFiltrada().forEach(a=>S.sel.add(a.id));renderLista();break;
+    case "selFin":S.selMode=false;S.sel.clear();render();break;
+    case "selPrint":imprimir(seleccionados());break;
+    case "selPdf":{const l=seleccionados();pdf(l,l.length===1?"Recibo-"+nombreArchivo(l[0].nombre)+"-"+MESES[S.m]+"-"+S.y+".pdf":"Recibos-"+MESES[S.m]+"-"+S.y+".pdf");break}
+    case "selPagar":{const mm=mes(S.y,S.m);const d=isoOf(new Date());let n=0;seleccionados().forEach(a=>{if(!mm.pagado[a.id]){mm.pagado[a.id]=d;n++}});saveMes(keyOf(S.y,S.m));S.selMode=false;S.sel.clear();render();toast(n?n+" marcados como pagados":"Ya estaban todos pagados");break}
+    case "backup":{D.config.ultimaCopia=isoOf(new Date());saveConfig();
+      const blob=new Blob([JSON.stringify(D,null,1)],{type:"application/json"});const u=URL.createObjectURL(blob);const l=document.createElement("a");
+      l.href=u;l.download="copia-recibos-"+isoOf(new Date())+".json";document.body.appendChild(l);l.click();l.remove();setTimeout(()=>URL.revokeObjectURL(u),2000);render();toast("Copia guardada");break}
+    case "restore":$("fileRestore").click();break;
+    case "importarLocal":{const x=localAntiguo();if(x){t.disabled=true;try{await importar(x)}catch(err){fallo(err)}}break}
+    case "salir":auth.signOut();break;
+    case "verPet":S.tab="horario";render();window.scrollTo(0,0);break;
+    case "olvido":{const em=$("lEmail").value.trim();if(!em){$("lErr").hidden=false;$("lErr").textContent="Escribe tu correo y vuelve a pulsar.";break}
+      auth.sendPasswordResetEmail(em).then(()=>toast("Te hemos mandado un correo para cambiarla")).catch(()=>{$("lErr").hidden=false;$("lErr").textContent="No se pudo enviar. Revisa el correo."});break}
+  }
+});
+$("fileRestore").addEventListener("change",e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();
+  r.onload=async()=>{try{const x=JSON.parse(r.result);if(!x||typeof x.alumnos!=="object")throw 0;await importar(x)}catch(err){toast("Ese archivo no es una copia de esta app")}};
+  r.readAsText(f);e.target.value=""});
+document.addEventListener("submit",e=>{
+  e.preventDefault();
+  if(e.target.id==="fLogin"){const b=e.target.querySelector("[type=submit]");b.disabled=true;$("lErr").hidden=true;
+    auth.signInWithEmailAndPassword($("lEmail").value.trim(),$("lPass").value).catch(()=>{$("lErr").hidden=false;$("lErr").textContent="Correo o contraseña incorrectos.";b.disabled=false});return}
+  if(e.target.id!=="fAlumno")return;leerForm();
+  const a=S.editing;a.nombre=a.nombre.trim();if(!a.nombre){$("fNombre").focus();return}
+  a.precio=Math.max(0,Number(String(a.precio).replace(",","."))||0);a.telefono=a.telefono.trim();
+  const h={};(a.dias||[]).forEach(i=>{if(a.hora[i])h[i]=a.hora[i]});a.hora=h;
+  if($("fActivo"))a.activo=$("fActivo").checked;if(!a.token)a.token=randId(16);
+  S.editing=null;saveAlumno(a);render();toast("Guardado");
+});
+document.addEventListener("change",e=>{
+  if(e.target.id==="horaDia"){const id=S.openId,mm=mes(S.y,S.m);mm.horaExtra[id]=mm.horaExtra[id]||{};
+    if(e.target.value)mm.horaExtra[id][S.selDate]=e.target.value;else delete mm.horaExtra[id][S.selDate];saveMes(keyOf(S.y,S.m),[id]);render()}
+});
+document.addEventListener("input",e=>{
+  if(e.target.id==="profesora"){D.config.profesora=e.target.value;saveConfig();publicarHorarios("todos")}
+  if(e.target.id==="q"){S.q=e.target.value;renderLista()}
+  if(e.target.id==="qa"){S.qa=e.target.value;const pos=e.target.selectionStart;render();const i=$("qa");if(i){i.focus();i.setSelectionRange(pos,pos)}}
+});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("sheet").hidden){S.openId=null;S.editing=null;S.festivosOpen=false;S.selDate=null;render()}});
+window.addEventListener("afterprint",()=>{$("printArea").innerHTML=""});
+
+/* ---------- página que ve el alumno ---------- */
+function vistaAlumno(token){
+  document.title="Mis clases";
+  $("app").classList.add("kid");
+  $("app").innerHTML=`<div class="loading">Cargando tus clases…</div>`;
+  const LSK="peticiones-"+token;
+  const mias=()=>{try{return JSON.parse(localStorage.getItem(LSK)||"[]")}catch(e){return []}};
+  const guardarMias=l=>{try{localStorage.setItem(LSK,JSON.stringify(l.slice(-20)))}catch(e){}};
+  let h=null,locales={},enviado=false;
+  const fecha=c=>{const dt=new Date(c.f+"T12:00");return DIAS_SG[wdOf(dt)]+" "+dt.getDate()+" de "+MESES[dt.getMonth()]};
+  const hora=c=>c.t?c.t+" – "+(c.fin||finHora(c.t,c.h)):hrs(c.h);
+  const ESTADO={pendiente:"Esperando respuesta",aceptada:"Aceptada",rechazada:"No puede ese día"};
+
+  function pintar(){
+    const hoyIso=isoOf(new Date());const fut=h.clases.filter(c=>c.f>=hoyIso);const prox=fut[0];
+    const porMes={};h.clases.forEach(c=>{const k=c.f.slice(0,7);(porMes[k]=porMes[k]||[]).push(c)});
+    const bloques=Object.entries(porMes).map(([k,l])=>{const [y,m]=k.split("-").map(Number);
+      return `<div class="section"><h3 style="text-transform:capitalize">${MESES[m-1]} ${y}</h3><div class="klist">${l.map(c=>`<div class="kitem${c.f<hoyIso?" past":""}"><span class="f">${fecha(c)}${c.extra?' <span class="tag">extra</span>':""}</span><span class="mono num">${hora(c)}</span></div>`).join("")}</div></div>`}).join("");
+    // peticiones: las publicadas por la profesora y las enviadas desde este móvil
+    const pets={};(h.solicitudes||[]).forEach(x=>pets[x.id]=x);Object.values(locales).forEach(x=>{if(!pets[x.id]||pets[x.id].estado==="pendiente")pets[x.id]=x});
+    const lp=Object.values(pets).filter(x=>x.estado==="pendiente"||x.f>=hoyIso).sort((a,b)=>a.f.localeCompare(b.f));
+    const max=new Date();max.setDate(max.getDate()+60);
+    $("app").innerHTML=`<div><div class="label">Clases con ${esc(h.profesora||"tu profesora")}</div><h1>${esc(h.nombre)}</h1><p class="hint" style="margin-top:6px">Normalmente: ${esc(h.normal)}</p></div>
+      <div class="section">${prox?`<div class="next"><span class="label" style="color:inherit;opacity:.8">Próxima clase</span><span class="big">${fecha(prox)}</span><span class="mono">${hora(prox)}</span></div>`:`<div class="empty"><strong>No hay clases apuntadas</strong>Cuando tu profesora apunte las del mes que viene aparecerán aquí.</div>`}</div>
+      <div class="section"><h3>Pedir una clase</h3>
+        <form class="kform" id="kForm">
+          <div class="grid3">
+            <div class="field"><label class="label" for="kFecha">Día</label><input type="date" id="kFecha" required min="${isoOf(new Date())}" max="${isoOf(max)}"></div>
+            <div class="field"><label class="label" for="kHora">Hora</label><input type="time" id="kHora" required step="900"></div>
+            <div class="field"><label class="label" for="kHoras">Duración</label><select id="kHoras">${[1,1.5,2,2.5,3].map(v=>`<option value="${v}" ${v===(h.horas||1)?"selected":""}>${hrs(v)}</option>`).join("")}</select></div>
+          </div>
+          <div class="field"><label class="label" for="kNota">Mensaje (opcional)</label><input id="kNota" maxlength="300" placeholder="Ej.: tengo examen de mates el jueves"></div>
+          <p class="err" id="kErr" hidden></p>
+          <button class="btn primary" type="submit">Enviar petición</button>
+          ${enviado?`<p class="hint" style="color:var(--ok);font-weight:700">Petición enviada. Tu profesora la verá y te la confirmará aquí.</p>`:`<p class="hint">Tu profesora decide si puede. La respuesta aparece aquí mismo.</p>`}
+        </form></div>
+      ${lp.length?`<div class="section"><h3>Tus peticiones</h3><div class="klist">${lp.map(x=>`<div class="kitem"><span class="f">${fecha(x)} · <span class="mono">${hora(x)}</span></span><span class="st ${x.estado}">${ESTADO[x.estado]||x.estado}</span></div>`).join("")}</div></div>`:""}
+      ${bloques}`;
+    $("kForm").addEventListener("submit",enviar);
+  }
+  async function enviar(e){
+    e.preventDefault();const err=$("kErr");err.hidden=true;
+    const f=$("kFecha").value,t=$("kHora").value,hh=Number($("kHoras").value),nota=$("kNota").value.trim().slice(0,300);
+    if(!f||f<isoOf(new Date())){err.hidden=false;err.textContent="Elige un día a partir de hoy.";return}
+    if(!t){err.hidden=false;err.textContent="Elige la hora.";return}
+    const btn=e.target.querySelector("[type=submit]");btn.disabled=true;
+    const id=randId(20);
+    const data={owner:h.owner,token,alumnoId:h.alumnoId,nombre:h.nombre,f,t,h:hh,nota,estado:"pendiente",creada:new Date().toISOString()};
+    try{await fs.collection("solicitudes").doc(id).set(data);
+      locales[id]=Object.assign({id},data);guardarMias([...mias(),id]);enviado=true;pintar();
+    }catch(x){console.error(x);btn.disabled=false;err.hidden=false;err.textContent="No se pudo enviar. Revisa la conexión y prueba otra vez."}
+  }
+  fs.collection("horarios").doc(token).get().then(async d=>{
+    if(!d.exists){$("app").innerHTML=`<div class="login"><h1>Enlace no válido</h1><p class="hint">Este enlace ya no funciona. Pide uno nuevo a tu profesora.</p></div>`;return}
+    h=d.data();h.clases=h.clases||[];
+    const pub=new Set((h.solicitudes||[]).filter(x=>x.estado!=="pendiente").map(x=>x.id));
+    await Promise.all(mias().filter(id=>!pub.has(id)).map(id=>fs.collection("solicitudes").doc(id).get().then(s=>{if(s.exists)locales[id]=Object.assign({id},s.data())}).catch(()=>{})));
+    pintar();
+  }).catch(()=>{$("app").innerHTML=`<div class="login"><h1>No se pudo cargar</h1><p class="hint">Revisa la conexión y vuelve a abrir el enlace.</p></div>`});
+}
+})();
+</script>
+</body>
+</html>
