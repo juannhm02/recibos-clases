@@ -1,0 +1,57 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Datos de la profesora: solo ella (su usuario) puede leerlos y escribirlos.
+    match /users/{uid}/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // Horario público de cada alumno.
+    // Cualquiera con el enlace (código secreto) puede LEER ese horario,
+    // pero nadie puede listar todos los horarios ni modificarlos salvo la profesora.
+    match /horarios/{token} {
+      allow get: if true;
+      allow list: if false;
+      allow create: if request.auth != null
+                    && request.resource.data.owner == request.auth.uid;
+      allow update: if request.auth != null
+                    && resource.data.owner == request.auth.uid
+                    && request.resource.data.owner == request.auth.uid;
+      allow delete: if request.auth != null
+                    && resource.data.owner == request.auth.uid;
+    }
+
+    // Peticiones de clase que mandan los alumnos desde su enlace.
+    // - Cualquiera con un enlace válido puede CREAR una petición pendiente para ESE alumno.
+    // - Solo se puede leer una petición conociendo su código (el alumno ve las suyas).
+    // - Solo la profesora puede listarlas, aceptarlas, rechazarlas o borrarlas.
+    function horario(tok) {
+      return get(/databases/$(database)/documents/horarios/$(tok)).data;
+    }
+    match /solicitudes/{id} {
+      allow get: if true;
+      allow list: if request.auth != null && resource.data.owner == request.auth.uid;
+      allow create: if request.resource.data.keys().hasOnly(
+                         ['owner','token','alumnoId','nombre','f','t','h','nota','estado','creada'])
+                    && request.resource.data.estado == 'pendiente'
+                    && request.resource.data.token is string
+                    && exists(/databases/$(database)/documents/horarios/$(request.resource.data.token))
+                    && horario(request.resource.data.token).owner == request.resource.data.owner
+                    && horario(request.resource.data.token).alumnoId == request.resource.data.alumnoId
+                    && horario(request.resource.data.token).nombre == request.resource.data.nombre
+                    && request.resource.data.f is string
+                    && request.resource.data.f.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+                    && request.resource.data.t is string && request.resource.data.t.size() <= 5
+                    && request.resource.data.h in [1, 1.5, 2, 2.5, 3]
+                    && request.resource.data.nota is string && request.resource.data.nota.size() <= 300
+                    && request.resource.data.creada is string;
+      allow update, delete: if request.auth != null && resource.data.owner == request.auth.uid;
+    }
+
+    // Todo lo demás, cerrado.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
