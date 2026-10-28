@@ -307,9 +307,9 @@ auth.onAuthStateChanged(u=>{
 function errorDatos(e){console.error(e);$("app").innerHTML=`<div class="login"><h1>No se pueden leer los datos</h1><p class="hint">Revisa que las reglas de Firestore estén publicadas (LEEME.md, paso 4).</p><button class="btn" data-act="salir">Salir</button></div>`}
 function pantallaLogin(){
   $("sheet").hidden=true;$("selbar").hidden=true;
-  $("app").innerHTML=`<form class="login" id="fLogin"><div><div class="label">Clases particulares</div><h1>Recibos</h1></div>
-    <div class="field"><label class="label" for="lEmail">Correo</label><input id="lEmail" type="email" autocomplete="username" required></div>
-    <div class="field"><label class="label" for="lPass">Contraseña</label><input id="lPass" type="password" autocomplete="current-password" required></div>
+  $("app").innerHTML=`<form class="login" id="fLogin" method="post" action="#"><div><div class="label">Clases particulares</div><h1>Recibos</h1></div>
+    <div class="field"><label class="label" for="lEmail">Correo</label><input id="lEmail" name="email" type="email" autocomplete="username" required></div>
+    <div class="field"><label class="label" for="lPass">Contraseña</label><input id="lPass" name="password" type="password" autocomplete="current-password" required></div>
     <p class="err" id="lErr" hidden></p>
     <button class="btn primary" type="submit">Entrar</button>
     <button class="btn ghost" type="button" data-act="olvido">He olvidado la contraseña</button></form>`;
@@ -704,7 +704,8 @@ $("fileRestore").addEventListener("change",e=>{const f=e.target.files[0];if(!f)r
 document.addEventListener("submit",e=>{
   e.preventDefault();
   if(e.target.id==="fLogin"){const b=e.target.querySelector("[type=submit]");b.disabled=true;$("lErr").hidden=true;
-    auth.signInWithEmailAndPassword($("lEmail").value.trim(),$("lPass").value).catch(()=>{$("lErr").hidden=false;$("lErr").textContent="Correo o contraseña incorrectos.";b.disabled=false});return}
+    const em=$("lEmail").value.trim(),pw=$("lPass").value;
+    auth.signInWithEmailAndPassword(em,pw).then(()=>{try{if(window.PasswordCredential)navigator.credentials.store(new PasswordCredential({id:em,password:pw,name:em})).catch(()=>{})}catch(x){}}).catch(()=>{$("lErr").hidden=false;$("lErr").textContent="Correo o contraseña incorrectos.";b.disabled=false});return}
   if(e.target.id!=="fAlumno")return;leerForm();
   const a=S.editing;a.nombre=a.nombre.trim();if(!a.nombre){$("fNombre").focus();return}
   a.precio=Math.max(0,Number(String(a.precio).replace(",","."))||0);a.telefono=a.telefono.trim();
