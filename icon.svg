@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="112" fill="#2E57E0"/>
+  <path d="M150 96h212a14 14 0 0 1 14 14v300l-29-20-29 20-29-20-29 20-29-20-29 20-29-20-29 20V110a14 14 0 0 1 14-14z" fill="#fff"/>
+  <rect x="186" y="150" width="140" height="22" rx="11" fill="#2E57E0" opacity=".35"/>
+  <rect x="186" y="198" width="104" height="22" rx="11" fill="#2E57E0" opacity=".35"/>
+  <text x="256" y="338" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-weight="700" font-size="120" fill="#1B2756">€</text>
+</svg>
