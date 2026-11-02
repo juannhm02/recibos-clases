@@ -36,7 +36,7 @@ export default {
 
 async function procesar(env, f = fetch) {
   const sa = leerSA(env);
-  const ctx = {f, usadas: 0, sa};
+  const ctx = {f: (u, o) => f(u, o), usadas: 0, sa}; // fetch no puede llamarse como método de otro objeto en Workers
   const token = await tokenAcceso(ctx);
   const base = `https://firestore.googleapis.com/v1/projects/${sa.project_id}/databases/(default)/documents`;
   const nombreBase = `projects/${sa.project_id}/databases/(default)/documents`;
