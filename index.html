@@ -16,6 +16,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" defer></script>
 <style>
 /* Una columna tipo talonario; el recibo es una hoja con borde troquelado. */
@@ -218,10 +219,90 @@ textarea.copybox{width:100%;min-height:160px;font-family:var(--f-mono);font-size
 .kform{background:var(--sheet);border:1px solid var(--line);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:12px}
 .kform .grid3{display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:10px}
 @media (max-width:420px){.kform .grid3{grid-template-columns:1fr 1fr}.kform .grid3 .field:first-child{grid-column:1/-1}}
+/* ---- v3: navegación inferior, horario en cuadrícula, peticiones ---- */
+body.con-nav{padding-bottom:calc(76px + env(safe-area-inset-bottom,0px))}
+.bnav{position:fixed;left:0;right:0;bottom:0;z-index:15;background:var(--sheet);border-top:1px solid var(--line);
+  display:grid;grid-template-columns:repeat(5,1fr);
+  padding:6px max(6px,env(safe-area-inset-right,0px)) calc(6px + env(safe-area-inset-bottom,0px)) max(6px,env(safe-area-inset-left,0px))}
+.bnav button{border:0;background:transparent;display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 2px;border-radius:12px;color:var(--muted);font-size:.72rem;font-weight:700;position:relative;min-width:0}
+.bnav svg{width:24px;height:24px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.bnav button[aria-current="page"]{color:var(--accent);background:var(--accent-soft)}
+.bnav .badge{position:absolute;top:2px;left:calc(50% + 6px);margin:0}
+.selbar{bottom:calc(64px + env(safe-area-inset-bottom,0px))}
+header.top{align-items:center}
+.sync{margin:0}
+
+.mini{border:1px solid var(--line);background:var(--sheet);border-radius:999px;padding:5px 12px;font-weight:700;font-size:.85rem;min-height:34px}
+.mini.add{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.mini.warn{color:var(--danger)}
+.wday h3{align-items:center}
+.dacts{display:flex;gap:6px;flex-wrap:wrap}
+.slot.cancel .n{text-decoration:line-through;color:var(--off)}
+.confirm label{font-weight:700}
+.seg{display:inline-flex;background:var(--sheet);border:1px solid var(--line);border-radius:999px;padding:3px;gap:2px}
+.seg button{border:0;background:transparent;border-radius:999px;padding:6px 12px;font-weight:700;color:var(--muted);min-height:34px}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
+.toolrow{display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:space-between}
+.agrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.acard{display:flex;flex-direction:column;gap:6px;text-align:left;background:var(--sheet);border:1px solid var(--line);border-radius:14px;padding:12px;min-width:0}
+.acard:hover{border-color:var(--accent)}
+.acard .name{font-weight:700;overflow-wrap:anywhere}
+.acard .dd{display:flex;gap:3px;flex-wrap:wrap}
+.acard .dd span{font-size:.72rem;font-weight:800;width:22px;height:22px;border-radius:6px;display:grid;place-items:center;background:var(--hatch);color:var(--off)}
+.acard .dd span.on{background:var(--accent-soft);color:var(--accent)}
+.acard.baja{opacity:.6}
+
+.req.falta{border-left-color:var(--danger)}
+.req.prop{border-left-color:var(--accent)}
+.req .tipo{font-size:.72rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.req .ruta{display:grid;grid-template-columns:auto 1fr;gap:2px 8px;font-size:.95rem}
+.req .ruta b{color:var(--muted);font-weight:700}
+.hist{display:flex;flex-direction:column;background:var(--sheet);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.hist .kitem{font-size:.92rem}
+.pick{display:flex;flex-direction:column;gap:6px;max-height:44vh;overflow:auto}
+.pick button{text-align:left;border:1px solid var(--line);background:var(--sheet);border-radius:12px;padding:10px 12px;font-weight:700}
+.pick button small{color:var(--muted);font-weight:400;margin-left:6px}
+.formrow{display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:10px}
+@media (max-width:420px){.formrow{grid-template-columns:1fr 1fr}.formrow .field:first-child{grid-column:1/-1}}
+
+/* horario del alumno en cuadrícula */
+.wk{display:grid;gap:0;background:var(--sheet);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.wk .wh{padding:8px 2px;text-align:center;font-size:.78rem;font-weight:800;border-bottom:1px solid var(--line);color:var(--muted);min-width:0}
+.wk .wh b{display:block;font-size:1.05rem;color:var(--ink);font-family:var(--f-display)}
+.wk .wh.hoy{background:var(--accent-soft)}
+.wk .wh.hoy b{color:var(--accent)}
+.wk .tcol{position:relative;border-right:1px solid var(--line)}
+.wk .tcol span{position:absolute;right:4px;font-family:var(--f-mono);font-size:.66rem;color:var(--muted);transform:translateY(-50%)}
+.wk .dcol{position:relative;border-right:1px solid var(--line);min-width:0;background-image:linear-gradient(var(--line) 1px,transparent 1px);background-size:100% var(--px)}
+.wk .dcol:last-child{border-right:0}
+.wk .dcol.hoy{background-color:color-mix(in srgb,var(--accent-soft) 45%,transparent)}
+.blk{position:absolute;left:3px;right:3px;border-radius:8px;background:var(--accent);color:var(--on-accent);border:0;padding:3px 4px;font-family:var(--f-mono);font-size:.68rem;font-weight:600;line-height:1.2;text-align:left;overflow:hidden;display:flex;flex-direction:column;gap:1px}
+.blk small{font-family:var(--f-body);font-size:.62rem;font-weight:800;opacity:.9}
+.blk.extra{background:var(--ok);color:#fff}
+.blk.pend{background:var(--sheet);color:var(--accent);border:2px dashed var(--accent)}
+.blk.prop{background:var(--warn-soft);color:var(--warn);border:2px solid var(--warn)}
+.blk.off{background:var(--hatch);color:var(--off);text-decoration:line-through}
+.blk.past{opacity:.55}
+.kleg{display:flex;flex-wrap:wrap;gap:6px 12px;font-size:.78rem;color:var(--muted);margin-top:8px}
+.kleg i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:4px;vertical-align:-1px}
+.aviso-k{background:var(--warn-soft);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:2px}
+.aviso-k small{color:var(--muted)}
+.kprop{background:var(--sheet);border:2px solid var(--warn);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:8px}
+
+.franja{display:grid;grid-template-columns:104px 1fr;gap:10px;align-items:start;padding:10px 14px;border-top:1px solid var(--line)}
+.franja:first-of-type{border-top:0}
+.franja .t{font-family:var(--f-mono);font-weight:600;font-size:.88rem;display:flex;flex-direction:column;gap:2px;padding-top:4px}
+.franja .t small{font-family:var(--f-body);color:var(--muted);font-weight:700;font-size:.75rem}
+.nombres{display:flex;flex-wrap:wrap;gap:6px;min-width:0}
+.nchip{border:1px solid var(--line);background:var(--paper);border-radius:999px;padding:5px 10px;font-weight:700;font-size:.88rem;min-height:34px}
+.nchip:hover{border-color:var(--accent)}
+.nchip.ex{background:var(--ok-soft);color:var(--ok);border-color:transparent}
+@media (min-width:860px){.franja{grid-template-columns:1fr}.franja .t{flex-direction:row;justify-content:space-between}}
 </style>
 </head>
 <body>
 <div class="wrap" id="app"><div class="loading">Cargando…</div></div>
+<nav class="bnav" id="nav" hidden aria-label="Secciones"><button id="tab-recibos"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-2-1.5-2 1.5-2-1.5-2 1.5-2-1.5L6 21z"/><path d="M9 8h6M9 12h6"/></svg><span>Recibos</span></button><button id="tab-horario"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg><span>Horario</span></button><button id="tab-peticiones"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 13l2-8h12l2 8v6H4z"/><path d="M4 13h5a3 3 0 0 0 6 0h5"/></svg><span>Peticiones</span><span class="badge" id="badge-pet" hidden></span></button><button id="tab-alumnos"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><circle cx="17" cy="9" r="2.5"/><path d="M16 14.2A5 5 0 0 1 21.5 19"/></svg><span>Alumnos</span></button><button id="tab-ajustes"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1 7 17M17 7l2.1-2.1"/></svg><span>Ajustes</span></button></nav>
 <div class="sheet" id="sheet" hidden><div class="wrap" id="sheetBody"></div></div>
 <div class="selbar" id="selbar" hidden></div>
 <div class="toast" id="toast" hidden></div>
@@ -229,10 +310,7 @@ textarea.copybox{width:100%;min-height:160px;font-family:var(--f-mono);font-size
 <input type="file" id="fileRestore" accept="application/json,.json" hidden>
 
 <script>
-/* =========================================================
-   PEGA AQUÍ LA CONFIGURACIÓN DE TU PROYECTO DE FIREBASE
-   (Consola de Firebase › Configuración del proyecto › Tus apps › SDK)
-   ========================================================= */
+/* Configuración del proyecto de Firebase (no es secreta: la seguridad está en firestore.rules) */
 const firebaseConfig = {
   apiKey: "AIzaSyCjnnsWz-cSfkbnPGF-SNXSiuCJEYUhFaQ",
   authDomain: "recibos-clases.firebaseapp.com",
@@ -241,6 +319,8 @@ const firebaseConfig = {
   messagingSenderId: "203608699398",
   appId: "1:203608699398:web:d7bfeb7b64f2ec4d148987"
 };
+/* Clave pública para avisos push (Firebase › Cloud Messaging › Certificados push web) */
+const VAPID = "BLTkZkxXwWv_pdLAs6sNWq4UgrKq172LGlEttcuC9uwBrmVm6SB0Lp-s6mQ-BI5MjjeH4R2eYaItSbGaXE_uGNU";
 </script>
 <script>
 (function(){
@@ -248,6 +328,9 @@ const MESES=["enero","febrero","marzo","abril","mayo","junio","julio","agosto","
 const DIAS_CORTO=["L","M","X","J","V","S","D"];
 const DIAS_PL=["lunes","martes","miércoles","jueves","viernes","sábados","domingos"];
 const DIAS_SG=["lunes","martes","miércoles","jueves","viernes","sábado","domingo"];
+const DUR=[1,1.5,2,2.5,3];
+const MOTIVOS=["Estoy enfermo/a","Tengo otro compromiso","Estoy fuera","Otro motivo"];
+const ESTADO_K={pendiente:"Esperando respuesta",propuesta:"Te propone otra hora",confirmada:"Confirmada",aceptada:"Aceptada",rechazada:"No puede",cancelada:"Cancelada",aviso:"Avisado"};
 const eur=n=>n.toLocaleString("es-ES",{minimumFractionDigits:2,maximumFractionDigits:2})+" €";
 const hrs=n=>(Number.isInteger(n)?n:n.toLocaleString("es-ES"))+" h";
 const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
@@ -260,19 +343,49 @@ const has=(o,k)=>Object.prototype.hasOwnProperty.call(o||{},k);
 const norm=s=>String(s||"").normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase();
 const clone=o=>JSON.parse(JSON.stringify(o));
 const randId=n=>{const a=new Uint8Array(n);crypto.getRandomValues(a);return [...a].map(b=>"abcdefghijkmnpqrstuvwxyz23456789"[b%32]).join("")};
-function finHora(t,h){if(!t)return "";const [H,M]=t.split(":").map(Number);const mins=H*60+M+Math.round(h*60);return pad(Math.floor(mins/60)%24)+":"+pad(mins%60)}
-let toastT;function toast(t){const el=$("toast");el.textContent=t;el.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>el.hidden=true,2600)}
+const parseIso=iso=>{const [y,m,d]=iso.split("-").map(Number);return new Date(y,m-1,d)};
+const toMin=t=>{const [H,M]=t.split(":").map(Number);return H*60+M};
+function finHora(t,h){if(!t)return "";const mins=toMin(t)+Math.round(h*60);return pad(Math.floor(mins/60)%24)+":"+pad(mins%60)}
+const rango=(t,h)=>t?t+"–"+finHora(t,h):hrs(h);
+const fechaLarga=iso=>{const dt=parseIso(iso);return DIAS_SG[wdOf(dt)]+" "+dt.getDate()+" de "+MESES[dt.getMonth()]};
+const hoyIso=()=>isoOf(new Date());
+const ahora=()=>new Date().toISOString();
+function lunes(dt){const d=new Date(dt.getFullYear(),dt.getMonth(),dt.getDate());d.setDate(d.getDate()-wdOf(d));return d}
+const cab=(t,act="close")=>`<div class="sheet-head"><button class="iconbtn" data-act="${act}" aria-label="Volver">←</button><h2>${t}</h2></div>`;
+const durOpts=(sel)=>DUR.map(v=>`<option value="${v}" ${v===sel?"selected":""}>${hrs(v)}</option>`).join("");
+let toastT;function toast(t){const el=$("toast");el.textContent=t;el.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>el.hidden=true,3200)}
 
 /* ---------- Firebase ---------- */
-if(!firebaseConfig.apiKey||firebaseConfig.apiKey==="PEGA_AQUI"){
-  $("app").innerHTML=`<div class="login"><h1>Falta configurar</h1><p class="hint">Pega la configuración de tu proyecto de Firebase al principio de este archivo (busca «PEGA AQUÍ»). Los pasos están en LEEME.md.</p></div>`;return;
-}
+if(!firebaseConfig.apiKey||firebaseConfig.apiKey==="PEGA_AQUI"){$("app").innerHTML=`<div class="login"><h1>Falta configurar</h1></div>`;return}
 firebase.initializeApp(firebaseConfig);
 const auth=firebase.auth();
 const fs=firebase.firestore();
 fs.enablePersistence({synchronizeTabs:true}).catch(()=>{});
 
-/* ---------- vista pública del alumno: ?h=código ---------- */
+/* ---------- avisos push ---------- */
+const esIOS=/iPhone|iPad|iPod/.test(navigator.userAgent)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1);
+const instalada=(window.matchMedia&&matchMedia("(display-mode: standalone)").matches)||navigator.standalone===true;
+async function pushSoportado(){try{return !!(window.Notification&&navigator.serviceWorker&&firebase.messaging&&await firebase.messaging.isSupported())}catch(e){return false}}
+let pushEscucha=false;
+async function obtenerToken(pedir){
+  if(!VAPID||VAPID.startsWith("VAPID"))throw new Error("sinclave");
+  if(!(await pushSoportado()))throw new Error("nosoporte");
+  if(pedir){const p=await Notification.requestPermission();if(p!=="granted")throw new Error("denegado")}
+  else if(Notification.permission!=="granted")return null;
+  const reg=await navigator.serviceWorker.register("firebase-messaging-sw.js");
+  const m=firebase.messaging();
+  const tok=await m.getToken({vapidKey:VAPID,serviceWorkerRegistration:reg});
+  if(!pushEscucha){pushEscucha=true;m.onMessage(p=>{const n=p.notification||{};toast((n.title?n.title+": ":"")+(n.body||""))})}
+  return tok;
+}
+function errorPush(e){const c=e&&e.message;
+  if(c==="denegado")return "Los avisos están bloqueados. Permítelos para esta web en los ajustes del navegador y vuelve a pulsar.";
+  if(c==="nosoporte")return esIOS&&!instalada?"En iPhone, primero añade esta página a la pantalla de inicio (Compartir › Añadir a pantalla de inicio) y ábrela desde ese icono.":"Este navegador no admite avisos. Prueba con Chrome.";
+  if(c==="sinclave")return "Los avisos aún no están configurados.";
+  return "No se pudieron activar los avisos. Prueba otra vez."}
+const pushHint=()=>esIOS&&!instalada?`<p class="hint">En iPhone solo funcionan si abres la app desde el icono de la pantalla de inicio (Safari › Compartir › Añadir a pantalla de inicio).</p>`:"";
+
+/* ---------- vista pública del alumno ---------- */
 const params=new URLSearchParams(location.search);
 if(params.get("h")){vistaAlumno(params.get("h"));return}
 
@@ -280,10 +393,14 @@ if(params.get("h")){vistaAlumno(params.get("h"));return}
 let D={alumnos:{},config:{profesora:"",ultimaCopia:""},meses:{},solicitudes:{}};
 let uid=null,ref=null;
 const hoy=new Date();
-const S={tab:"recibos",y:hoy.getFullYear(),m:hoy.getMonth(),wk:lunes(hoy),openId:null,selDate:null,editing:null,confirmDel:false,festivosOpen:false,
-  q:"",filtro:"todos",sel:new Set(),selMode:false,qa:"",cargado:{alumnos:false,meses:false,config:false},online:navigator.onLine};
-function lunes(dt){const d=new Date(dt.getFullYear(),dt.getMonth(),dt.getDate());d.setDate(d.getDate()-wdOf(d));return d}
-function mes(y,m){const k=keyOf(y,m);const x=D.meses[k]||(D.meses[k]={});x.dias=x.dias||{};x.horaExtra=x.horaExtra||{};x.festivos=x.festivos||[];x.pagado=x.pagado||{};return x}
+const leerVista=()=>{try{return localStorage.getItem("vista-alumnos")||"lista"}catch(e){return "lista"}};
+const S={tab:"recibos",y:hoy.getFullYear(),m:hoy.getMonth(),wk:lunes(hoy),sheet:null,selDate:null,editing:null,confirmDel:false,confirmDia:null,
+  q:"",filtro:"todos",sel:new Set(),selMode:false,qa:"",vista:leerVista(),histOpen:false,pushOn:false,
+  cargado:{alumnos:false,meses:false,config:false},online:navigator.onLine};
+const openId=()=>S.sheet&&S.sheet.k==="alumno"?S.sheet.id:null;
+function mes(y,m){const k=keyOf(y,m);const x=D.meses[k]||(D.meses[k]={});x.dias=x.dias||{};x.horaExtra=x.horaExtra||{};x.festivos=x.festivos||[];x.pagado=x.pagado||{};x.motivos=x.motivos||{};return x}
+const mesIso=iso=>{const d=parseIso(iso);return mes(d.getFullYear(),d.getMonth())};
+const keyIso=iso=>iso.slice(0,7);
 window.addEventListener("online",()=>{S.online=true;renderSync()});
 window.addEventListener("offline",()=>{S.online=false;renderSync()});
 
@@ -299,14 +416,16 @@ auth.onAuthStateChanged(u=>{
   unsubs.push(ref.collection("meses").onSnapshot(s=>{const m={};s.forEach(d=>m[d.id]=d.data());D.meses=Object.assign(m,pendientesMes());S.cargado.meses=true;remoto()},e=>errorDatos(e)));
   unsubs.push(ref.collection("config").doc("general").onSnapshot(d=>{if(d.exists)D.config=Object.assign({profesora:"",ultimaCopia:""},d.data());S.cargado.config=true;remoto()},()=>{S.cargado.config=true;remoto()}));
   unsubs.push(fs.collection("solicitudes").where("owner","==",uid).onSnapshot(s=>{
-    const o={};s.forEach(d=>o[d.id]=Object.assign({id:d.id},d.data()));const prev=D.solicitudes;D.solicitudes=o;
-    const ch=new Set();for(const id in o)if(!prev[id]||prev[id].estado!==o[id].estado)ch.add(o[id].alumnoId);
+    const o={};s.forEach(d=>o[d.id]=Object.assign({id:d.id,tipo:"extra"},d.data()));const prev=D.solicitudes;D.solicitudes=o;
+    const ch=new Set();for(const id in o)if(!prev[id]||prev[id].estado!==o[id].estado||prev[id].f!==o[id].f||prev[id].t!==o[id].t)ch.add(o[id].alumnoId);
     if(S.cargado.alumnos){const l=[...ch].filter(x=>D.alumnos[x]);if(l.length)publicarHorarios(l);limpiarSolicitudes()}
     remoto()},e=>console.error(e)));
+  obtenerToken(false).then(t=>{if(t){S.pushOn=true;guardarTokenProfe(t)}}).catch(()=>{});
 });
-function errorDatos(e){console.error(e);$("app").innerHTML=`<div class="login"><h1>No se pueden leer los datos</h1><p class="hint">Revisa que las reglas de Firestore estén publicadas (LEEME.md, paso 4).</p><button class="btn" data-act="salir">Salir</button></div>`}
+function guardarTokenProfe(t){return ref.collection("push").doc(t).set({creado:ahora(),dispositivo:navigator.userAgent.slice(0,140)})}
+function errorDatos(e){console.error(e);$("nav").hidden=true;$("app").innerHTML=`<div class="login"><h1>No se pueden leer los datos</h1><p class="hint">Revisa que las reglas de Firestore estén publicadas.</p><button class="btn" data-act="salir">Salir</button></div>`}
 function pantallaLogin(){
-  $("sheet").hidden=true;$("selbar").hidden=true;
+  $("sheet").hidden=true;$("selbar").hidden=true;$("nav").hidden=true;document.body.classList.remove("con-nav");
   $("app").innerHTML=`<form class="login" id="fLogin" method="post" action="#"><div><div class="label">Clases particulares</div><h1>Recibos</h1></div>
     <div class="field"><label class="label" for="lEmail">Correo</label><input id="lEmail" name="email" type="email" autocomplete="username" required></div>
     <div class="field"><label class="label" for="lPass">Contraseña</label><input id="lPass" name="password" type="password" autocomplete="current-password" required></div>
@@ -315,13 +434,13 @@ function pantallaLogin(){
     <button class="btn ghost" type="button" data-act="olvido">He olvidado la contraseña</button></form>`;
 }
 
-/* ---------- guardado en la nube ---------- */
-const pend={};      // meses escritos aquí y aún no confirmados (evita que un snapshot viejo pise un cambio)
+/* ---------- guardado ---------- */
+const pend={};
 function pendientesMes(){const o={};for(const k in pend)o[k]=D.meses[k];return o}
 function fallo(e){console.error(e);toast("No se pudo guardar. Se intentará de nuevo con conexión.")}
 function saveAlumno(a){D.alumnos[a.id]=a;ref.collection("alumnos").doc(a.id).set(a).catch(fallo);publicarHorarios([a.id])}
 function deleteAlumno(id){const a=D.alumnos[id];delete D.alumnos[id];ref.collection("alumnos").doc(id).delete().catch(fallo);if(a&&a.token)fs.collection("horarios").doc(a.token).delete().catch(()=>{})}
-function saveMes(k,ids){pend[k]=(pend[k]||0)+1;ref.collection("meses").doc(k).set(clone(D.meses[k])).catch(fallo).finally(()=>{if(--pend[k]<=0)delete pend[k]});if(ids)publicarHorarios(ids)}
+function saveMes(k,ids){mesIso(k+"-01");pend[k]=(pend[k]||0)+1;ref.collection("meses").doc(k).set(clone(D.meses[k])).catch(fallo).finally(()=>{if(--pend[k]<=0)delete pend[k]});if(ids)publicarHorarios(ids)}
 let cfgT;function saveConfig(){clearTimeout(cfgT);cfgT=setTimeout(()=>ref.collection("config").doc("general").set(clone(D.config)).catch(fallo),600)}
 
 /* horario público de cada alumno: horarios/{código} */
@@ -335,46 +454,21 @@ function publicarUno(id){
   for(let k=0;k<2;k++){const y=h.getFullYear()+Math.floor((h.getMonth()+k)/12),m=(h.getMonth()+k)%12;const c=calc(a,y,m);
     for(const x of diasDelMes(y,m)){const p=c.porDia[x.iso];if(p.h>0)clases.push({f:x.iso,t:p.t||"",fin:p.t?finHora(p.t,p.h):"",h:p.h,extra:p.tipo==="extra"})}}
   const lim=isoOf(new Date(Date.now()-45*864e5));
-  const pets=Object.values(D.solicitudes).filter(x=>x.alumnoId===id&&x.creada>=lim).sort((x,y)=>y.creada.localeCompare(x.creada)).slice(0,10).map(x=>({id:x.id,f:x.f,t:x.t||"",h:x.h,estado:x.estado}));
-  r.set({owner:uid,alumnoId:id,solicitudes:pets,nombre:a.nombre,normal:horarioTxt(a),horas:a.horas||1,profesora:D.config.profesora||"",clases,actualizado:new Date().toISOString()}).catch(e=>console.error(e));
+  const pets=Object.values(D.solicitudes).filter(x=>x.alumnoId===id&&x.creada>=lim).sort((x,y)=>y.creada.localeCompare(x.creada)).slice(0,15)
+    .map(x=>{const o={id:x.id,tipo:x.tipo||"extra",f:x.f,t:x.t||"",h:x.h,estado:x.estado,aplicada:!!x.aplicada,actualizada:x.actualizada||x.creada||""};if(x.de)o.de=x.de;if(x.motivo)o.motivo=x.motivo;if(x.notaProfe)o.notaProfe=x.notaProfe;return o});
+  r.set({owner:uid,alumnoId:id,solicitudes:pets,avisos:(a.avisos||[]).slice(0,10),nombre:a.nombre,normal:horarioTxt(a),horas:a.horas||1,profesora:D.config.profesora||"",clases,actualizado:ahora()}).catch(e=>console.error(e));
 }
 
-/* ---------- peticiones de clase de los alumnos ---------- */
-const pendientes=()=>Object.values(D.solicitudes).filter(x=>x.estado==="pendiente").sort((a,b)=>(a.f+a.t).localeCompare(b.f+b.t));
-let limpiado=false;
-function limpiarSolicitudes(){if(limpiado)return;limpiado=true;const lim=new Date(Date.now()-60*864e5).toISOString();
-  Object.values(D.solicitudes).forEach(x=>{if(x.estado!=="pendiente"&&x.creada<lim)fs.collection("solicitudes").doc(x.id).delete().catch(()=>{})})}
-function fechaLarga(iso){const dt=new Date(iso+"T12:00");return DIAS_SG[wdOf(dt)]+" "+dt.getDate()+" de "+MESES[dt.getMonth()]}
-function choques(sol){
-  const dt=new Date(sol.f+"T12:00");const mm=mes(dt.getFullYear(),dt.getMonth());const wd=wdOf(dt);
-  const ini=sol.t?toMin(sol.t):null,fin=ini!=null?ini+sol.h*60:null;const out=[];
-  for(const a of activos()){const p=infoDia(a,sol.f,wd,mm);if(p.h<=0)continue;
-    if(a.id===sol.alumnoId){out.push("Ese día ya tiene clase"+(p.t?" a las "+p.t:""));continue}
-    if(ini==null||!p.t)continue;const i2=toMin(p.t),f2=i2+p.h*60;if(ini<f2&&i2<fin)out.push("Coincide con "+a.nombre+" ("+p.t+"–"+finHora(p.t,p.h)+")")}
-  if(mm.festivos.includes(sol.f))out.push("Lo tienes marcado como día sin clase");
-  return out;
-}
-const toMin=t=>{const [H,M]=t.split(":").map(Number);return H*60+M};
-function htmlSolicitudes(){
-  const l=pendientes();if(!l.length)return "";
-  return `<div class="section" style="margin-top:0;margin-bottom:18px"><h3>Peticiones de clase <span class="badge">${l.length}</span></h3><div class="reqs">${l.map(x=>{
-    const a=D.alumnos[x.alumnoId];const av=a?choques(x):["Este alumno ya no está en la lista"];
-    return `<div class="req"><span class="who">${esc(a?a.nombre:x.nombre)}</span>
-      <span class="when">${fechaLarga(x.f)} · ${x.t?x.t+"–"+finHora(x.t,x.h):""} (${hrs(x.h)})</span>
-      ${x.nota?`<span class="nota">«${esc(x.nota)}»</span>`:""}
-      ${av.map(t=>`<span class="aviso">${esc(t)}</span>`).join("")}
-      <div class="btns"><button class="btn okb" data-acept="${x.id}" ${a?"":"disabled"}>Aceptar</button><button class="btn ghost" data-rech="${x.id}">Rechazar</button></div></div>`}).join("")}</div></div>`;
-}
-function responder(id,ok){
-  const x=D.solicitudes[id];if(!x)return;
-  if(ok){const a=D.alumnos[x.alumnoId];if(!a)return;const dt=new Date(x.f+"T12:00");const y=dt.getFullYear(),m=dt.getMonth(),wd=wdOf(dt);const mm=mes(y,m);
-    const p=infoDia(a,x.f,wd,mm);const normal=p.habitual&&!p.fest?(a.horas||1):0;const ov={...(mm.dias[a.id]||{})};
-    if(x.h===normal)delete ov[x.f];else ov[x.f]=x.h;mm.dias[a.id]=ov;
-    mm.horaExtra[a.id]=mm.horaExtra[a.id]||{};if(x.t&&x.t!==(a.hora||{})[wd])mm.horaExtra[a.id][x.f]=x.t;else delete mm.horaExtra[a.id][x.f];
-    saveMes(keyOf(y,m),[a.id]);}
-  x.estado=ok?"aceptada":"rechazada";
-  fs.collection("solicitudes").doc(id).update({estado:x.estado,respondida:new Date().toISOString()}).catch(fallo);
-  publicarHorarios([x.alumnoId]);render();toast(ok?"Clase añadida al horario":"Petición rechazada");
+/* ---------- avisos a los alumnos ---------- */
+const cola={};let colaT;
+function encolarAviso(aid,texto){if(!D.alumnos[aid])return;(cola[aid]=cola[aid]||[]).push(texto);clearTimeout(colaT);colaT=setTimeout(vaciarCola,2500)}
+function vaciarCola(){for(const aid of Object.keys(cola)){const t=cola[aid];delete cola[aid];enviarAviso([aid],"Cambio en tus clases",t.join(" · "))}}
+function enviarAviso(aids,titulo,cuerpo){
+  const al=[...new Set(aids)].map(i=>D.alumnos[i]).filter(a=>a&&a.token&&a.activo!==false);if(!al.length)return;
+  const fecha=ahora();
+  al.forEach(a=>{a.avisos=[{fecha,texto:cuerpo.slice(0,280)}].concat(a.avisos||[]).slice(0,10);ref.collection("alumnos").doc(a.id).update({avisos:a.avisos}).catch(()=>{})});
+  publicarHorarios(al.map(a=>a.id));
+  for(let i=0;i<al.length;i+=50)fs.collection("avisos").add({para:"alumnos",owner:uid,alumnos:al.slice(i,i+50).map(a=>a.token),titulo:titulo.slice(0,90),cuerpo:cuerpo.slice(0,280),creado:fecha}).catch(e=>console.error(e));
 }
 
 /* ---------- cálculo ---------- */
@@ -384,8 +478,19 @@ function infoDia(a,iso,wd,mm){
   if(has(ov,iso)){h=ov[iso];tipo=h===0?(habitual&&!fest?"missed":(fest?"holiday":"none")):(habitual&&!fest?"habit":"extra")}
   else if(fest){h=0;tipo="holiday"}else if(habitual){h=a.horas||1;tipo="habit"}else{h=0;tipo="none"}
   const t=((mm.horaExtra[a.id]||{})[iso])||((a.hora||{})[wd])||"";
-  return {h,tipo,habitual,fest,t,override:has(ov,iso)};
+  const motivo=((mm.motivos||{})[a.id]||{})[iso]||"";
+  return {h,tipo,habitual,fest,t,motivo,override:has(ov,iso)};
 }
+const infoIso=(a,iso)=>infoDia(a,iso,wdOf(parseIso(iso)),mesIso(iso));
+function setClase(aid,iso,h,t){
+  const a=D.alumnos[aid];const mm=mesIso(iso);const wd=wdOf(parseIso(iso));
+  const normal=(a.dias||[]).includes(wd)&&!mm.festivos.includes(iso)?(a.horas||1):0;
+  const ov={...(mm.dias[aid]||{})};if(h===normal)delete ov[iso];else ov[iso]=h;mm.dias[aid]=ov;
+  mm.horaExtra[aid]=mm.horaExtra[aid]||{};if(h>0&&t&&t!==(a.hora||{})[wd])mm.horaExtra[aid][iso]=t;else delete mm.horaExtra[aid][iso];
+  if(h>0&&mm.motivos[aid])delete mm.motivos[aid][iso];
+  return keyIso(iso);
+}
+function setMotivo(aid,iso,txt){const mm=mesIso(iso);mm.motivos[aid]=mm.motivos[aid]||{};if(txt)mm.motivos[aid][iso]=txt.slice(0,120);else delete mm.motivos[aid][iso]}
 function calc(a,y=S.y,m=S.m){
   const mm=mes(y,m);let horas=0,clases=0;const lineas=[];const porDia={};
   for(const x of diasDelMes(y,m)){const p=infoDia(a,x.iso,x.wd,mm);porDia[x.iso]=p;
@@ -407,7 +512,57 @@ function textoRecibo(a){
 }
 function enlaceHorario(a){return location.origin+location.pathname+"?h="+a.token}
 
-/* ---------- lista de recibos: buscador, filtro y selección ---------- */
+/* ---------- peticiones ---------- */
+const porResponder=()=>Object.values(D.solicitudes).filter(x=>x.estado==="pendiente").sort((a,b)=>(a.f+a.t).localeCompare(b.f+b.t));
+const faltasNuevas=()=>Object.values(D.solicitudes).filter(x=>x.tipo==="falta"&&x.estado==="aviso"&&!x.visto).sort((a,b)=>a.f.localeCompare(b.f));
+const esperando=()=>Object.values(D.solicitudes).filter(x=>x.estado==="propuesta"||(x.estado==="confirmada"&&!x.aplicada));
+const nPet=()=>porResponder().length+faltasNuevas().length;
+let limpiado=false;
+function limpiarSolicitudes(){if(limpiado)return;limpiado=true;const lim=new Date(Date.now()-60*864e5).toISOString();
+  Object.values(D.solicitudes).forEach(x=>{if(["aceptada","rechazada","cancelada"].includes(x.estado)||(x.tipo==="falta"&&x.visto)){if((x.actualizada||x.creada)<lim)fs.collection("solicitudes").doc(x.id).delete().catch(()=>{})}})}
+function descr(x){
+  if(x.tipo==="falta")return "no ir el "+fechaLarga(x.f)+(x.motivo?" ("+x.motivo+")":"");
+  if(x.tipo==="cambio"&&x.de)return "cambiar la clase del "+fechaLarga(x.de.f)+" al "+fechaLarga(x.f)+" "+rango(x.t,x.h);
+  return "clase extra el "+fechaLarga(x.f)+" "+rango(x.t,x.h);
+}
+function aplicarSolicitud(x){
+  const a=D.alumnos[x.alumnoId];if(!a)return;const keys=new Set();
+  if(x.tipo==="falta"){keys.add(setClase(a.id,x.f,0));setMotivo(a.id,x.f,x.motivo||"Avisó que no viene")}
+  else{if(x.tipo==="cambio"&&x.de&&x.de.f!==x.f)keys.add(setClase(a.id,x.de.f,0));keys.add(setClase(a.id,x.f,x.h,x.t))}
+  keys.forEach(k=>saveMes(k));publicarHorarios([a.id]);
+}
+const enCurso=new Set();
+function procesarAuto(){
+  if(!S.cargado.alumnos||!S.cargado.meses)return;
+  for(const x of Object.values(D.solicitudes)){
+    if(x.aplicada||enCurso.has(x.id))continue;
+    const conf=x.estado==="confirmada",falta=x.tipo==="falta"&&x.estado==="aviso";
+    if(!conf&&!falta)continue;
+    if(!D.alumnos[x.alumnoId])continue;
+    enCurso.add(x.id);aplicarSolicitud(x);x.aplicada=true;
+    const upd={aplicada:true,actualizada:ahora()};if(conf){upd.estado="aceptada";x.estado="aceptada"}
+    fs.collection("solicitudes").doc(x.id).update(upd).catch(fallo);
+  }
+}
+function choques(sol){
+  const dt=parseIso(sol.f);const mm=mesIso(sol.f);const wd=wdOf(dt);
+  const ini=sol.t?toMin(sol.t):null,fin=ini!=null?ini+sol.h*60:null;const out=[];
+  for(const a of activos()){const p=infoDia(a,sol.f,wd,mm);if(p.h<=0)continue;
+    if(a.id===sol.alumnoId){if(!(sol.tipo==="cambio"&&sol.de&&sol.de.f===sol.f))out.push("Ese día ya tiene clase"+(p.t?" a las "+p.t:""));continue}
+    if(ini==null||!p.t)continue;const i2=toMin(p.t),f2=i2+p.h*60;if(ini<f2&&i2<fin)out.push("Coincide con "+a.nombre+" ("+rango(p.t,p.h)+")")}
+  if(mm.festivos.includes(sol.f))out.push("Ese día está cancelado");
+  return out;
+}
+function responder(id,ok){
+  const x=D.solicitudes[id];if(!x)return;
+  if(ok){aplicarSolicitud(x);x.aplicada=true;x.estado="aceptada"}else x.estado="rechazada";
+  x.por="profesora";x.actualizada=ahora();
+  fs.collection("solicitudes").doc(id).update({estado:x.estado,aplicada:!!ok,por:"profesora",actualizada:x.actualizada}).catch(fallo);
+  enviarAviso([x.alumnoId],ok?"Petición aceptada":"Petición rechazada",(ok?"Aceptada: ":"Tu profesora no puede: ")+descr(x)+".");
+  publicarHorarios([x.alumnoId]);render();toast(ok?"Aceptada y añadida al horario":"Petición rechazada");
+}
+
+/* ---------- lista de recibos ---------- */
 function listaFiltrada(){
   const mm=mes(S.y,S.m);const q=norm(S.q).trim();
   return activos().filter(a=>(!q||norm(a.nombre).includes(q))&&(S.filtro==="todos"||(S.filtro==="pagados")===!!mm.pagado[a.id]));
@@ -424,8 +579,7 @@ function htmlLista(){
 }
 function renderLista(){const el=$("lista");if(el){el.innerHTML=htmlLista();el.classList.toggle("selmode",S.selMode)}renderSelbar()}
 function renderSelbar(){
-  const bar=$("selbar");const show=S.tab==="recibos"&&S.selMode&&!S.openId&&!S.editing&&!S.festivosOpen;bar.hidden=!show;
-  document.body.style.paddingBottom=show?"150px":"";
+  const bar=$("selbar");const show=S.tab==="recibos"&&S.selMode&&!S.sheet&&!S.editing;bar.hidden=!show;
   if(!show)return;const n=S.sel.size;
   bar.innerHTML=`<div class="in"><span class="count">${n?n+(n>1?" alumnos seleccionados":" alumno seleccionado"):"Toca los alumnos que quieras"}</span>
     <button class="btn primary" data-act="selPrint" ${n?"":"disabled"}>Imprimir</button><button class="btn" data-act="selPdf" ${n?"":"disabled"}>PDF</button>
@@ -434,84 +588,136 @@ function renderSelbar(){
 const seleccionados=()=>activos().filter(a=>S.sel.has(a.id));
 
 /* ---------- pantallas ---------- */
+const TITULOS={recibos:"Recibos",horario:"Horario",peticiones:"Peticiones",alumnos:"Alumnos",ajustes:"Ajustes"};
 function remoto(){
   if(!S.cargado.alumnos||!S.cargado.meses||!S.cargado.config)return;
+  procesarAuto();
   if(!$("view")){montar();return}
   const ae=document.activeElement;const typing=ae&&/^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName);
   if(S.editing)return;
-  if(typing){if(ae.id==="q")renderLista();return}
+  if(typing){if(ae.id==="q")renderLista();renderNav();return}
   render();
 }
 function montar(){
-  $("app").innerHTML=`<header class="top"><div><div class="label">Clases particulares</div><h1>Recibos</h1></div>
-    <div class="tabs" role="tablist"><button role="tab" id="tab-recibos">Recibos</button><button role="tab" id="tab-horario">Horario</button><button role="tab" id="tab-alumnos">Alumnos</button></div></header>
-    <main id="view"></main><p class="sync" id="sync"></p>`;
+  $("app").innerHTML=`<header class="top"><div><div class="label">Clases particulares</div><h1 id="titulo">Recibos</h1></div><p class="sync" id="sync"></p></header><main id="view"></main>`;
+  $("nav").hidden=false;document.body.classList.add("con-nav");
   render();
-  const hoyIso=isoOf(new Date());   // una vez al día se actualizan los horarios públicos (mes actual y siguiente)
-  if(D.config.publicado!==hoyIso&&Object.keys(D.alumnos).length){D.config.publicado=hoyIso;saveConfig();publicarHorarios("todos")}
+  const h=hoyIso();
+  if(D.config.publicado!==h&&Object.keys(D.alumnos).length){D.config.publicado=h;saveConfig();publicarHorarios("todos")}
 }
-function renderSync(){const el=$("sync");if(!el)return;el.className="sync"+(S.online?"":" off");el.innerHTML=S.online?"<i></i>Guardado en la nube":"<i></i>Sin conexión: los cambios se suben al volver internet"}
+function renderSync(){const el=$("sync");if(!el)return;el.className="sync"+(S.online?"":" off");el.innerHTML=S.online?"<i></i>Guardado en la nube":"<i></i>Sin conexión"}
+function renderNav(){
+  for(const t of Object.keys(TITULOS)){const b=$("tab-"+t);if(b)b.setAttribute("aria-current",S.tab===t?"page":"false")}
+  const n=nPet();const bd=$("badge-pet");bd.hidden=!n;bd.textContent=n;
+}
 function render(){
   if(!$("view"))return;
-  for(const t of ["recibos","horario","alumnos"])$("tab-"+t).setAttribute("aria-selected",S.tab===t);
-  const np=pendientes().length;$("tab-horario").innerHTML="Horario"+(np?`<span class="badge">${np}</span>`:"");
+  renderNav();$("titulo").textContent=TITULOS[S.tab];
   $("app").classList.toggle("wide-ok",S.tab==="horario");
-  $("view").innerHTML=S.tab==="recibos"?viewRecibos():S.tab==="horario"?viewHorario():viewAlumnos();
+  const V={recibos:viewRecibos,horario:viewHorario,peticiones:viewPeticiones,alumnos:viewAlumnos,ajustes:viewAjustes};
+  $("view").innerHTML=V[S.tab]();
   renderSync();renderSheet();renderSelbar();
 }
 function monthNav(tag="h2"){return `<div class="month"><button class="iconbtn" data-act="prev" aria-label="Mes anterior">‹</button><${tag}>${MESES[S.m]} ${S.y}</${tag}><button class="iconbtn" data-act="next" aria-label="Mes siguiente">›</button></div>`}
+const lupa=`<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>`;
 function viewRecibos(){
   const lista=activos();
-  if(!lista.length)return monthNav()+`<div class="empty"><strong>Todavía no hay alumnos</strong>Añade a cada alumno con sus días de clase y su precio por hora. Si ya usabas la versión anterior, recupera tu copia en Alumnos › Copia de seguridad.<div class="btns" style="margin-top:14px;justify-content:center"><button class="btn primary" data-act="nuevo">Añadir alumno</button>${localAntiguo()?'<button class="btn" data-act="importarLocal">Traer datos de este móvil</button>':""}</div></div>`;
+  if(!lista.length)return monthNav()+`<div class="empty"><strong>Todavía no hay alumnos</strong>Añade a cada alumno con sus días de clase y su precio por hora, o carga una copia desde Ajustes.<div class="btns" style="margin-top:14px;justify-content:center"><button class="btn primary" data-act="nuevo">Añadir alumno</button></div></div>`;
   const mm=mes(S.y,S.m);let tot=0,cob=0,np=0;
   lista.forEach(a=>{const c=calc(a);tot+=c.importe;if(mm.pagado[a.id])cob+=c.importe;else np++});
   const f=(k,l)=>`<button class="chip small" data-filtro="${k}" aria-pressed="${S.filtro===k}">${l}</button>`;
-  const npet=pendientes().length;
-  return (npet?`<button class="banner" data-act="verPet"><span>${npet===1?"Tienes 1 petición de clase":"Tienes "+npet+" peticiones de clase"}</span><span>Ver ›</span></button>`:"")+monthNav()+`<div class="summary"><div><div class="label">Total mes</div><div class="v">${eur(tot)}</div></div>
+  const npet=nPet();
+  return (npet?`<button class="banner" data-act="verPet"><span>${npet===1?"Tienes 1 petición o aviso nuevo":"Tienes "+npet+" peticiones o avisos nuevos"}</span><span>Ver ›</span></button>`:"")+monthNav()+`<div class="summary"><div><div class="label">Total mes</div><div class="v">${eur(tot)}</div></div>
       <div><div class="label">Cobrado</div><div class="v ok">${eur(cob)}</div></div>
       <div><div class="label">Pendiente</div><div class="v warn">${eur(tot-cob)}</div></div></div>
-    <div class="tools"><label class="search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-      <input id="q" type="search" placeholder="Buscar alumno" value="${esc(S.q)}" autocomplete="off" aria-label="Buscar alumno"></label>
+    <div class="tools"><label class="search">${lupa}<input id="q" type="search" placeholder="Buscar alumno" value="${esc(S.q)}" autocomplete="off" aria-label="Buscar alumno"></label>
       <div class="filters">${f("todos","Todos ("+lista.length+")")}${f("pendientes","Pendientes ("+np+")")}${f("pagados","Pagados ("+(lista.length-np)+")")}<span class="spacer"></span>
       ${S.selMode?`<button class="chip small" data-act="selTodos">Marcar los que se ven</button>`:`<button class="chip small" data-act="selIni">Seleccionar varios</button>`}</div></div>
     <div class="list${S.selMode?" selmode":""}" id="lista">${htmlLista()}</div>
-    <div class="section"><button class="btn ghost wide" data-act="festivos">Días sin clase este mes${mm.festivos.length?" ("+mm.festivos.length+")":""}</button>
-    <p class="hint">Toca un alumno para ver su calendario y su recibo. Con «Seleccionar varios» imprimes o sacas el PDF de varios a la vez.</p></div>`;
+    <div class="section"><button class="btn ghost wide" data-act="festivos">Días sin clase este mes${mm.festivos.length?" ("+mm.festivos.length+")":""}</button></div>`;
 }
 function viewHorario(){
   const dias=[...Array(7)].map((_,i)=>{const d=new Date(S.wk);d.setDate(d.getDate()+i);return d});
-  const fin=dias[6];const hoyIso=isoOf(new Date());
+  const fin=dias[6];const hoyI=hoyIso();
   const tit=dias[0].getDate()+(dias[0].getMonth()!==fin.getMonth()?" "+MESES[dias[0].getMonth()].slice(0,3):"")+" – "+fin.getDate()+" "+MESES[fin.getMonth()];
   const al=activos();
   const bloques=dias.map((d,i)=>{const iso=isoOf(d);const mm=mes(d.getFullYear(),d.getMonth());
     const items=al.map(a=>({a,p:infoDia(a,iso,i,mm)})).filter(x=>x.p.h>0).sort((x,y)=>(x.p.t||"99").localeCompare(y.p.t||"99"));
-    if(i>=5&&!items.length)return "";const fest=mm.festivos.includes(iso);
-    const slots=items.length?items.map(({a,p})=>`<button class="slot" data-open="${a.id}" data-month="${iso}" style="width:100%;text-align:left;background:none;border-left:0;border-right:0;border-bottom:0">
-        <span class="t">${p.t?p.t+"–"+finHora(p.t,p.h):hrs(p.h)}</span><span class="n">${esc(a.nombre)}</span>${p.tipo==="extra"?'<span class="tag">extra</span>':"<span></span>"}</button>`).join("")
-      :`<div class="slot none">${fest?"Festivo":"Sin clases"}</div>`;
-    return `<section class="wday${iso===hoyIso?" today":""}${fest?" holi":""}"><h3><span>${DIAS_SG[i]} ${d.getDate()}</span><span class="hint" style="text-transform:none">${items.length?items.length+(items.length>1?" clases":" clase"):""}</span></h3>${slots}</section>`}).join("");
-  return htmlSolicitudes()+`<div class="month"><button class="iconbtn" data-act="wprev" aria-label="Semana anterior">‹</button><h2 class="num" style="text-transform:none">${tit}</h2><button class="iconbtn" data-act="wnext" aria-label="Semana siguiente">›</button></div>
+    const fest=mm.festivos.includes(iso);
+    if(i>=5&&!items.length&&!fest)return "";
+    const quitadas=al.map(a=>({a,p:infoDia(a,iso,i,mm)})).filter(x=>x.p.tipo==="missed"&&x.p.motivo);
+    const grupos=[];for(const it of items){const k=rango(it.p.t,it.p.h);const g=grupos.find(x=>x.k===k);g?g.l.push(it):grupos.push({k,l:[it]})}
+    const slots=grupos.map(g=>`<div class="franja"><span class="t">${g.k}<small>${g.l.length}</small></span><span class="nombres">${g.l.map(({a,p})=>`<button class="nchip${p.tipo==="extra"?" ex":""}" data-clase="${a.id}|${iso}">${esc(a.nombre)}${p.tipo==="extra"?" ·extra":""}</button>`).join("")}</span></div>`).join("")
+      +quitadas.map(({a,p})=>`<div class="slot cancel"><span class="t">—</span><span class="n">${esc(a.nombre)}</span><span class="hint">${esc(p.motivo)}</span></div>`).join("");
+    const conf=S.confirmDia===iso?`<div class="confirm" style="margin:10px 14px"><strong>¿Cancelar todas las clases del ${fechaLarga(iso)}?</strong>
+        <span class="hint">Se avisará a ${items.length} ${items.length===1?"alumno":"alumnos"}.</span>
+        <div class="field"><label class="label" for="cdMotivo">Motivo (lo verán los alumnos)</label><input id="cdMotivo" maxlength="120" placeholder="Ej.: tengo médico"></div>
+        <div class="btns"><button class="btn danger" data-act="cdSi">Sí, cancelar el día</button><button class="btn ghost" data-act="cdNo">No</button></div></div>`:"";
+    return `<section class="wday${iso===hoyI?" today":""}${fest?" holi":""}"><h3><span>${DIAS_SG[i]} ${d.getDate()}</span>
+        <span class="dacts">${fest?`<button class="mini" data-recup="${iso}">Recuperar día</button>`:`<button class="mini add" data-add="${iso}" aria-label="Añadir clase el ${fechaLarga(iso)}">+ Clase</button><button class="mini warn" data-canc="${iso}">Cancelar día</button>`}</span></h3>
+        ${conf}${slots||`<div class="slot none">${fest?"Día cancelado":"Sin clases"}</div>`}</section>`}).join("");
+  return `<div class="month"><button class="iconbtn" data-act="wprev" aria-label="Semana anterior">‹</button><h2 class="num" style="text-transform:none">${tit}</h2><button class="iconbtn" data-act="wnext" aria-label="Semana siguiente">›</button></div>
     <div class="week">${bloques}</div>
     <div class="section"><button class="btn ghost" data-act="whoy">Ir a esta semana</button>
-    <p class="hint">Cada alumno tiene un enlace para ver sus propias clases. Lo copias desde su ficha con «Copiar enlace del horario».</p></div>`;
+    <p class="hint">Toca una clase para moverla o quitarla. Los alumnos afectados reciben un aviso.</p></div>`;
 }
-function viewAlumnos(){
+function cardSol(x,modo){
+  const a=D.alumnos[x.alumnoId];const nombre=esc(a?a.nombre:x.nombre);
+  const tipoTxt=x.tipo==="falta"?"No puede venir":x.tipo==="cambio"?"Cambio de clase":"Clase extra";
+  let ruta;
+  if(x.tipo==="cambio"&&x.de)ruta=`<div class="ruta"><b>De</b><span>${fechaLarga(x.de.f)} · ${rango(x.de.t,x.de.h)}</span><b>A</b><span>${fechaLarga(x.f)} · ${rango(x.t,x.h)}</span></div>`;
+  else if(x.tipo==="falta")ruta=`<span class="when">${fechaLarga(x.f)}${x.t?" · "+rango(x.t,x.h):""}</span>`;
+  else ruta=`<span class="when">${fechaLarga(x.f)} · ${rango(x.t,x.h)}</span>`;
+  const av=modo==="responder"?(a?choques(x):["Este alumno ya no está en la lista"]):[];
+  let btns="";
+  if(modo==="responder")btns=`<div class="btns"><button class="btn okb" data-acept="${x.id}" ${a?"":"disabled"}>Aceptar</button><button class="btn" data-prop="${x.id}" ${a?"":"disabled"}>Otra hora</button><button class="btn ghost" data-rech="${x.id}">Rechazar</button></div>`;
+  if(modo==="falta")btns=`<div class="btns"><button class="btn" data-visto="${x.id}">Entendido</button></div>`;
+  if(modo==="espera")btns=`<span class="hint">${x.estado==="confirmada"?"El alumno ha aceptado. Se aplica ahora.":"Esperando a que "+nombre+" acepte o proponga otra."}</span>`;
+  return `<div class="req${x.tipo==="falta"?" falta":""}${modo==="espera"?" prop":""}"><span class="tipo">${tipoTxt}</span><span class="who">${nombre}</span>${ruta}
+    ${x.motivo?`<span class="nota">${esc(x.motivo)}</span>`:""}${x.nota?`<span class="nota">«${esc(x.nota)}»</span>`:""}${x.notaProfe&&modo==="espera"?`<span class="nota">Tu nota: ${esc(x.notaProfe)}</span>`:""}
+    ${av.map(t=>`<span class="aviso">${esc(t)}</span>`).join("")}${btns}</div>`;
+}
+function viewPeticiones(){
+  const r=porResponder(),f=faltasNuevas(),e=esperando();
+  const hist=Object.values(D.solicitudes).filter(x=>!r.includes(x)&&!f.includes(x)&&!e.includes(x)).sort((a,b)=>(b.actualizada||b.creada||"").localeCompare(a.actualizada||a.creada||"")).slice(0,30);
+  const sec=(t,l,modo,vacio)=>`<div class="section"><h3>${t}${l.length?` <span class="badge">${l.length}</span>`:""}</h3>${l.length?`<div class="reqs">${l.map(x=>cardSol(x,modo)).join("")}</div>`:`<p class="hint">${vacio}</p>`}</div>`;
+  const est={aceptada:["aceptada","Aceptada"],rechazada:["rechazada","Rechazada"],cancelada:["rechazada","Cancelada"],aviso:["pendiente","Avisó"]};
+  return sec("Por responder",r,"responder","No hay peticiones pendientes.")
+    +sec("Avisos de faltas",f,"falta","Ningún alumno ha avisado de que falta.")
+    +(e.length?sec("Esperando al alumno",e,"espera",""):"")
+    +`<div class="section"><button class="btn ghost" data-act="hist">${S.histOpen?"Ocultar":"Ver"} historial (${hist.length})</button>
+      ${S.histOpen?`<div class="hist">${hist.map(x=>{const a=D.alumnos[x.alumnoId];const s=est[x.estado]||["pendiente",x.estado];return `<div class="kitem"><span>${esc(a?a.nombre:x.nombre)} · ${esc(descr(x))}</span><span class="st ${s[0]}">${s[1]}</span></div>`}).join("")||'<div class="kitem">Sin historial</div>'}</div>`:""}</div>`;
+}
+function htmlAlumnos(){
   const q=norm(S.qa).trim();
   const todos=Object.values(D.alumnos).filter(a=>!q||norm(a.nombre).includes(q)).sort((a,b)=>(a.activo===false)-(b.activo===false)||a.nombre.localeCompare(b.nombre,"es"));
-  const rows=todos.map(a=>`<button class="row" data-edit="${a.id}"><span class="name">${esc(a.nombre)}</span>
+  if(!todos.length)return Object.keys(D.alumnos).length?`<div class="noresults">Ningún alumno coincide con «${esc(S.qa)}».</div>`:'<div class="empty"><strong>Sin alumnos</strong>Pulsa «Añadir alumno» para empezar.</div>';
+  if(S.vista==="cuadricula")return `<div class="agrid">${todos.map(a=>`<button class="acard${a.activo===false?" baja":""}" data-edit="${a.id}"><span class="name">${esc(a.nombre)}</span>
+      <span class="dd">${DIAS_CORTO.slice(0,6).map((d,i)=>`<span class="${(a.dias||[]).includes(i)?"on":""}">${d}</span>`).join("")}</span>
+      <span class="hint">${eur(a.precio||0)}/h${a.activo===false?" · De baja":""}</span></button>`).join("")}</div>`;
+  return `<div class="list">${todos.map(a=>`<button class="row" data-edit="${a.id}"><span class="name">${esc(a.nombre)}</span>
       <span class="amt">${eur(a.precio||0)}<span class="hint">/h</span></span><span class="meta">${esc(horarioTxt(a))} · ${hrs(a.horas||1)}</span>
-      ${a.activo===false?'<span class="pill warn">De baja</span>':"<span></span>"}</button>`).join("");
+      ${a.activo===false?'<span class="pill warn">De baja</span>':"<span></span>"}</button>`).join("")}</div>`;
+}
+function viewAlumnos(){
+  const n=Object.keys(D.alumnos).length;
+  return `<div class="tools"><div class="toolrow"><button class="btn primary" data-act="nuevo">+ Añadir alumno</button>
+      <span class="seg" role="group" aria-label="Forma de ver"><button data-vista="lista" aria-pressed="${S.vista==="lista"}">Lista</button><button data-vista="cuadricula" aria-pressed="${S.vista==="cuadricula"}">Cuadrícula</button></span></div>
+    <label class="search">${lupa}<input id="qa" type="search" placeholder="Buscar entre ${n} alumnos" value="${esc(S.qa)}" autocomplete="off" aria-label="Buscar alumno"></label></div>
+    <div id="listaAlumnos">${htmlAlumnos()}</div>`;
+}
+function viewAjustes(){
   const uc=D.config.ultimaCopia;
-  return `<div class="tools"><div class="btns"><button class="btn primary" data-act="nuevo">+ Añadir alumno</button></div>
-    ${Object.keys(D.alumnos).length>6?`<label class="search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="qa" type="search" placeholder="Buscar alumno" value="${esc(S.qa)}" autocomplete="off" aria-label="Buscar alumno"></label>`:""}</div>
-    <div class="list" id="listaAlumnos">${rows||'<div class="empty"><strong>Sin alumnos</strong>Pulsa «Añadir alumno» para empezar.</div>'}</div>
-    <div class="section"><h3>Tus datos para el recibo</h3>
+  return `<div class="section" style="margin-top:0"><h3>Tus datos para el recibo</h3>
       <div class="field"><label class="label" for="profesora">Nombre que firma el recibo</label><input id="profesora" value="${esc(D.config.profesora)}" placeholder="Tu nombre y apellidos"></div></div>
+    <div class="section"><h3>Avisos en este móvil</h3><div class="card">
+      ${S.pushOn?`<p class="hint"><strong style="color:var(--ok)">Activados.</strong> Te llegará un aviso cuando un alumno pida una clase, un cambio o avise de que falta.</p>`
+      :`<p class="hint">Recibe un aviso como un mensaje cuando un alumno pida una clase, un cambio o avise de que falta. Hay que activarlo en cada móvil u ordenador.</p>${pushHint()}<div class="btns"><button class="btn primary" data-act="pushOn">Activar avisos</button></div>`}</div></div>
     <div class="section"><h3>Copia de seguridad</h3>
-      <div class="card"><p class="hint">Los datos ya están guardados en la nube. Esta copia es un extra por si acaso, o para traer los datos de la versión anterior.</p>
+      <div class="card"><p class="hint">Los datos ya están guardados en la nube. Esta copia es un extra por si acaso, o para cargar alumnos de golpe.</p>
       <p class="hint"><strong>Última copia:</strong> ${uc?fmtFecha(uc):"ninguna todavía"}</p>
-      <div class="btns"><button class="btn" data-act="backup">Guardar copia</button><button class="btn ghost" data-act="restore">Recuperar una copia</button>${localAntiguo()?'<button class="btn ghost" data-act="importarLocal">Traer datos de este móvil</button>':""}</div></div></div>
-    <div class="section"><p class="hint">Has entrado como ${esc(auth.currentUser&&auth.currentUser.email)}</p><div class="btns"><button class="btn ghost" data-act="salir">Salir</button></div></div>`;
+      <div class="btns"><button class="btn" data-act="backup">Guardar copia</button><button class="btn ghost" data-act="restore">Recuperar una copia</button></div></div></div>
+    <div class="section"><h3>Cuenta</h3><p class="hint">Has entrado como ${esc(auth.currentUser&&auth.currentUser.email)}</p><div class="btns"><button class="btn ghost" data-act="salir">Salir</button></div></div>`;
 }
 function calendario(porDia,{festivos=false}={}){
   const dias=diasDelMes(S.y,S.m);const fest=new Set(mes(S.y,S.m).festivos);
@@ -527,18 +733,22 @@ function calendario(porDia,{festivos=false}={}){
   return `<div class="cal">${h}</div>`;
 }
 function renderSheet(){
-  const sh=$("sheet");let html="";
-  if(S.openId&&D.alumnos[S.openId])html=sheetAlumnoMes(D.alumnos[S.openId]);
-  else if(S.editing)html=sheetEditar();
-  else if(S.festivosOpen)html=sheetFestivos();
+  const sh=$("sheet");let html="";const k=S.sheet&&S.sheet.k;
+  if(S.editing)html=sheetEditar();
+  else if(k==="alumno"&&D.alumnos[S.sheet.id])html=sheetAlumnoMes(D.alumnos[S.sheet.id]);
+  else if(k==="festivos")html=sheetFestivos();
+  else if(k==="anadir")html=sheetAnadir();
+  else if(k==="clase"&&D.alumnos[S.sheet.aid])html=sheetClase();
+  else if(k==="proponer"&&D.solicitudes[S.sheet.sid])html=sheetProponer();
   if(html){const st=sh.scrollTop;$("sheetBody").innerHTML=html;sh.scrollTop=st}
   sh.hidden=!html;document.body.style.overflow=html?"hidden":"";
 }
 function sheetAlumnoMes(a){
   const c=calc(a);const mm=mes(S.y,S.m);const pag=mm.pagado[a.id];let editor;
-  if(S.selDate&&c.porDia[S.selDate]){const p=c.porDia[S.selDate];const d=Number(S.selDate.slice(8));const wd=wdOf(new Date(S.selDate+"T12:00"));
+  if(S.selDate&&c.porDia[S.selDate]){const p=c.porDia[S.selDate];const d=Number(S.selDate.slice(8));const wd=wdOf(parseIso(S.selDate));
     const opts=[[0,p.habitual?"Falta":"Sin clase"],[1,"1 h"],[1.5,"1,5 h"],[2,"2 h"],[2.5,"2,5 h"],[3,"3 h"]];
     editor=`<div class="card"><div><strong>${DIAS_SG[wd]} ${d} de ${MESES[S.m]}</strong> <span class="hint">· ${p.habitual?"día habitual":"día fuera de su horario"}</span></div>
+      ${p.motivo?`<span class="hint">Motivo: ${esc(p.motivo)}</span>`:""}
       <div class="chips">${opts.map(([v,l])=>`<button class="chip" data-set="${v}" aria-pressed="${p.h===v}">${l}</button>`).join("")}</div>
       ${p.h>0?`<div class="dayrow"><label class="label" for="horaDia">Hora</label><input class="mono" type="time" id="horaDia" value="${p.t}" style="background:var(--sheet);border:1px solid var(--line);border-radius:12px;padding:8px 10px;min-height:44px"></div>`:""}
       ${p.override||has(mm.horaExtra[a.id],S.selDate)?`<button class="btn ghost" data-set="reset">Volver a lo normal</button>`:""}</div>`}
@@ -555,12 +765,12 @@ function sheetAlumnoMes(a){
         <div class="detail">Días: ${esc(c.lineas.join(", ")||"—")}${c.lineas.some(l=>l.endsWith("*"))?"<br>* día extra":""}</div>
         <div class="total"><span>TOTAL</span><span class="num">${eur(c.importe)}</span></div>
         ${pag?`<div class="stamp">PAGADO · ${fmtFecha(pag)}</div>`:""}
-        <div class="hint" style="margin-top:10px;font-family:var(--f-body)">${esc(D.config.profesora||"Pon tu nombre en Alumnos › Tus datos")}</div></div>
+        <div class="hint" style="margin-top:10px;font-family:var(--f-body)">${esc(D.config.profesora||"Pon tu nombre en Ajustes")}</div></div>
       <div class="btns"><button class="btn primary" data-act="print">Imprimir</button><button class="btn" data-act="pdf">Descargar PDF</button><button class="btn" data-act="copiar">Copiar para WhatsApp</button></div>
       <button class="btn ${pag?"ghost":"okb"}" data-act="pagar">${pag?"Quitar «pagado»":"Marcar como pagado"}</button>
       <div id="copyFallback"></div></div>
     <div class="section"><div class="label">Horario del alumno</div>
-      <div class="card"><p class="hint">Con este enlace el alumno ve sus próximas clases, sin poder cambiar nada. Se actualiza solo cuando apuntas cambios.</p>
+      <div class="card"><p class="hint">Con este enlace el alumno ve su horario, pide clases y avisa si falta.</p>
       <p class="mono" style="margin:0;overflow-wrap:anywhere;font-size:.82rem;user-select:all">${esc(enlaceHorario(a))}</p>
       <div class="btns"><button class="btn" data-act="copiarEnlace">Copiar enlace del horario</button><button class="btn ghost" data-act="nuevoEnlace">Cambiar enlace</button></div></div>
       ${a.telefono?`<p class="hint">Teléfono: <span class="mono">${esc(a.telefono)}</span></p>`:""}</div>`;
@@ -568,25 +778,65 @@ function sheetAlumnoMes(a){
 function sheetEditar(){
   const a=S.editing;const nuevo=!D.alumnos[a.id];a.hora=a.hora||{};
   const horasDias=(a.dias||[]).slice().sort().map(i=>`<div class="dayrow"><label class="label" for="fh${i}" style="min-width:90px">${DIAS_SG[i]}</label><input type="time" id="fh${i}" data-hora="${i}" value="${a.hora[i]||""}"></div>`).join("");
-  return `<div class="sheet-head"><button class="iconbtn" data-act="cancel" aria-label="Cancelar">←</button><h2>${nuevo?"Nuevo alumno":"Editar alumno"}</h2></div>
+  return cab(nuevo?"Nuevo alumno":"Editar alumno","cancel")+`
   <form id="fAlumno" class="section" autocomplete="off">
     <div class="field"><label class="label" for="fNombre">Nombre</label><input id="fNombre" required value="${esc(a.nombre)}" placeholder="Ej.: Elena García"></div>
     <div class="field"><span class="label">Días que viene normalmente</span>
       <div class="chips">${DIAS_CORTO.map((d,i)=>`<button type="button" class="chip" data-wd="${i}" aria-pressed="${(a.dias||[]).includes(i)}" aria-label="${DIAS_PL[i]}">${d}</button>`).join("")}</div></div>
     ${horasDias?`<div class="field"><span class="label">Hora de entrada</span><div class="list" style="gap:8px">${horasDias}</div></div>`:""}
-    <div class="grid2"><div class="field"><label class="label" for="fHoras">Horas por clase</label>
-        <select id="fHoras">${[1,1.5,2,2.5,3].map(v=>`<option value="${v}" ${a.horas===v?"selected":""}>${hrs(v)}</option>`).join("")}</select></div>
+    <div class="grid2"><div class="field"><label class="label" for="fHoras">Horas por clase</label><select id="fHoras">${durOpts(a.horas)}</select></div>
       <div class="field"><label class="label" for="fPrecio">Precio por hora (€)</label><input id="fPrecio" type="number" inputmode="decimal" step="0.5" min="0" value="${a.precio}"></div></div>
     <div class="field"><label class="label" for="fTel">Teléfono (opcional)</label><input id="fTel" type="tel" value="${esc(a.telefono||"")}" placeholder="Para tenerlo a mano"></div>
     ${nuevo?"":`<label style="display:flex;gap:10px;align-items:center"><input type="checkbox" id="fActivo" ${a.activo!==false?"checked":""} style="width:22px;height:22px"> Sigue viniendo a clase</label>`}
-    <div class="btns"><button class="btn primary" type="submit">Guardar</button><button class="btn ghost" type="button" data-act="cancel">Cancelar</button></div>
+    <div class="btns"><button class="btn primary" type="submit">Guardar</button><button class="btn ghost" type="button" data-act="cancel">Cancelar</button>${nuevo?"":`<button class="btn ghost" type="button" data-open="${a.id}">Ver recibos</button>`}</div>
     ${nuevo?"":(S.confirmDel?`<div class="confirm"><strong>¿Borrar a ${esc(a.nombre)} para siempre?</strong><span class="hint">Si solo ha dejado las clases, mejor desmarca «Sigue viniendo» y se conservan sus recibos.</span><div class="btns"><button class="btn danger" type="button" data-act="borrarSi">Sí, borrar</button><button class="btn ghost" type="button" data-act="borrarNo">No</button></div></div>`:`<button class="btn danger" type="button" data-act="borrar">Borrar alumno</button>`)}
   </form>`;
 }
 function sheetFestivos(){
-  return `<div class="sheet-head"><button class="iconbtn" data-act="close" aria-label="Volver">←</button><h2>Días sin clase</h2></div>
-  ${monthNav("h3")}<p class="hint" style="margin-bottom:10px">Marca festivos o días que no das clase. Ese día no se cobra a nadie (salvo que lo cambies en un alumno).</p>
-  ${calendario(null,{festivos:true})}`;
+  return cab("Días sin clase")+`${monthNav("h3")}<p class="hint" style="margin-bottom:10px">Marca festivos o días que no das clase. Ese día no se cobra a nadie. Para avisar a los alumnos, usa «Cancelar día» en el Horario.</p>${calendario(null,{festivos:true})}`;
+}
+function htmlPick(){
+  const q=norm(S.sheet.q).trim();const l=activos().filter(a=>!q||norm(a.nombre).includes(q)).slice(0,40);
+  return l.map(a=>`<button data-anpick="${a.id}">${esc(a.nombre)}<small>${esc(horarioTxt(a))}</small></button>`).join("")||'<p class="hint">Ningún alumno coincide.</p>';
+}
+function sheetAnadir(){
+  const s=S.sheet;const iso=s.iso;const wd=wdOf(parseIso(iso));
+  if(!s.aid)return cab("Añadir clase")+`<p class="hint" style="margin-bottom:10px">${fechaLarga(iso)} · ¿Para qué alumno?</p>
+    <label class="search">${lupa}<input id="anQ" type="search" placeholder="Buscar alumno" value="${esc(s.q)}" autocomplete="off"></label>
+    <div class="pick section" id="anList">${htmlPick()}</div>`;
+  const a=D.alumnos[s.aid];const p=infoIso(a,iso);
+  const tDef=s.t||(a.hora||{})[wd]||Object.values(a.hora||{})[0]||"17:00";const hDef=s.h||a.horas||1;
+  const av=choques({f:iso,t:tDef,h:hDef,alumnoId:a.id});
+  return cab("Añadir clase")+`<p class="hint">${fechaLarga(iso)}</p><h3 style="margin:6px 0 4px">${esc(a.nombre)}</h3>
+    ${p.h>0?`<p class="aviso" style="color:var(--warn);font-weight:700">Ya tiene clase ese día (${rango(p.t,p.h)}). Se sustituirá.</p>`:""}
+    <div class="grid2 section"><div class="field"><label class="label" for="anT">Hora</label><input id="anT" type="time" step="900" value="${tDef}"></div>
+      <div class="field"><label class="label" for="anH">Duración</label><select id="anH">${durOpts(hDef)}</select></div></div>
+    <div id="anAv">${av.map(t=>`<p class="hint" style="color:var(--warn);font-weight:700">${esc(t)}</p>`).join("")}</div>
+    <div class="btns section"><button class="btn primary" data-act="anadirClase">Añadir clase y avisar</button><button class="btn ghost" data-act="anOtro">Otro alumno</button></div>`;
+}
+function sheetClase(){
+  const {aid,iso}=S.sheet;const a=D.alumnos[aid];const p=infoIso(a,iso);
+  return cab(esc(a.nombre))+`<p class="hint">${fechaLarga(iso)} · ${rango(p.t,p.h)}${p.tipo==="extra"?" · clase extra":""}</p>
+    <div class="section"><h3>Moverla a otro día u hora</h3>
+      <div class="formrow"><div class="field"><label class="label" for="cmF">Día</label><input id="cmF" type="date" value="${iso}"></div>
+      <div class="field"><label class="label" for="cmT">Hora</label><input id="cmT" type="time" step="900" value="${p.t||"17:00"}"></div>
+      <div class="field"><label class="label" for="cmH">Duración</label><select id="cmH">${durOpts(p.h)}</select></div></div>
+      <div class="btns"><button class="btn primary" data-act="moverClase">Guardar y avisar</button></div></div>
+    <div class="section"><h3>Quitar esta clase</h3>
+      <div class="field"><label class="label" for="cmM">Motivo (lo verá el alumno, opcional)</label><input id="cmM" maxlength="120" placeholder="Ej.: lo hemos hablado, no le hace falta"></div>
+      <div class="btns"><button class="btn danger" data-act="quitarClase">Quitar clase y avisar</button></div></div>
+    <div class="section"><button class="btn ghost" data-open="${aid}">Ver su ficha y recibos</button></div>`;
+}
+function sheetProponer(){
+  const x=D.solicitudes[S.sheet.sid];const a=D.alumnos[x.alumnoId];
+  return cab("Proponer otra hora")+`<p class="hint">${esc(a?a.nombre:x.nombre)} pide: ${esc(descr(x))}.</p>
+    <div class="section"><div class="formrow"><div class="field"><label class="label" for="pF">Día</label><input id="pF" type="date" value="${x.f}"></div>
+      <div class="field"><label class="label" for="pT">Hora</label><input id="pT" type="time" step="900" value="${x.t||"17:00"}"></div>
+      <div class="field"><label class="label" for="pH">Duración</label><select id="pH">${durOpts(x.h||1)}</select></div></div>
+    <div class="field"><label class="label" for="pN">Mensaje (opcional)</label><input id="pN" maxlength="200" placeholder="Ej.: el jueves no puedo, ¿te viene el viernes?"></div>
+    <div id="pAv"></div>
+    <div class="btns"><button class="btn primary" data-act="enviarProp">Enviar propuesta</button><button class="btn ghost" data-act="close">Cancelar</button></div>
+    <p class="hint">El alumno la verá en su horario y podrá aceptarla o proponer otra.</p></div>`;
 }
 
 /* ---------- imprimir y PDF ---------- */
@@ -623,45 +873,59 @@ function pdf(lista,nombre){
 }
 const nombreArchivo=s=>norm(s).replace(/[^\w]+/g,"-").replace(/^-|-$/g,"");
 
-/* ---------- importar datos antiguos ---------- */
-function localAntiguo(){try{const x=JSON.parse(localStorage.getItem("recibos-clases-v2")||"null");return x&&x.alumnos&&Object.values(x.alumnos).some(a=>!a.ejemplo)?x:null}catch(e){return null}}
+/* ---------- importar ---------- */
 async function importar(x){
   const b=fs.batch();let n=0;
   for(const a of Object.values(x.alumnos||{})){if(a.ejemplo)continue;const al=Object.assign({},a,{token:a.token||randId(16)});delete al.ejemplo;D.alumnos[al.id]=al;b.set(ref.collection("alumnos").doc(al.id),al);n++}
-  for(const [k,v] of Object.entries(x.meses||{})){const m=clone(v);for(const f of ["dias","horaExtra","pagado"])for(const id in (m[f]||{}))if(String(id).startsWith("ej-"))delete m[f][id];D.meses[k]=m;b.set(ref.collection("meses").doc(k),m)}
-  if(x.config){D.config=Object.assign(D.config,{profesora:x.config.profesora||D.config.profesora});b.set(ref.collection("config").doc("general"),clone(D.config))}
+  for(const [k,v] of Object.entries(x.meses||{})){const m=clone(v);D.meses[k]=m;b.set(ref.collection("meses").doc(k),m)}
+  if(x.config&&x.config.profesora){D.config.profesora=x.config.profesora;b.set(ref.collection("config").doc("general"),clone(D.config))}
   await b.commit();publicarHorarios("todos");render();toast(n+" alumnos traídos a la nube");
 }
 
 /* ---------- acciones ---------- */
 function cambiarMes(d){S.m+=d;if(S.m<0){S.m=11;S.y--}if(S.m>11){S.m=0;S.y++}S.selDate=null;render()}
-function nuevoAlumno(){S.editing={id:"a"+Date.now().toString(36)+randId(4),nombre:"",dias:[],hora:{},horas:1,precio:6,telefono:"",activo:true,token:randId(16)};S.confirmDel=false;S.openId=null;render();setTimeout(()=>$("fNombre")&&$("fNombre").focus(),50)}
+function nuevoAlumno(){S.editing={id:"a"+Date.now().toString(36)+randId(4),nombre:"",dias:[],hora:{},horas:1,precio:6,telefono:"",activo:true,token:randId(16)};S.confirmDel=false;S.sheet=null;render();setTimeout(()=>$("fNombre")&&$("fNombre").focus(),50)}
 function copiar(txt,okMsg){
   const fb=()=>{const el=$("copyFallback");if(!el){toast("No se pudo copiar");return}el.innerHTML=`<p class="hint">Mantén pulsado el texto y elige «Copiar»:</p><textarea class="copybox" id="copyBox" readonly></textarea>`;$("copyBox").value=txt;$("copyBox").select()};
   try{navigator.clipboard.writeText(txt).then(()=>toast(okMsg),fb)}catch(e){fb()}
 }
 function leerForm(){const a=S.editing;if(!a||!$("fNombre"))return;a.nombre=$("fNombre").value;a.horas=Number($("fHoras").value);a.precio=$("fPrecio").value;a.telefono=$("fTel").value;
   document.querySelectorAll("[data-hora]").forEach(i=>{a.hora[i.dataset.hora]=i.value})}
+const futuro=iso=>iso>=hoyIso();
+function cerrar(){S.sheet=null;S.selDate=null;render()}
 
 document.addEventListener("click",async e=>{
   const t=e.target.closest("button");if(!t||t.disabled)return;
-  if(t.id&&t.id.startsWith("tab-")){S.tab=t.id.slice(4);render();return}
-  if(t.dataset.acept){t.disabled=true;responder(t.dataset.acept,true);return}
-  if(t.dataset.rech){t.disabled=true;responder(t.dataset.rech,false);return}
-  if(t.dataset.pick){const id=t.dataset.pick;S.sel.has(id)?S.sel.delete(id):S.sel.add(id);renderLista();return}
-  if(t.dataset.filtro){S.filtro=t.dataset.filtro;render();return}
-  if(t.dataset.open){if(t.dataset.month){const d=new Date(t.dataset.month+"T12:00");S.y=d.getFullYear();S.m=d.getMonth();S.selDate=t.dataset.month}else S.selDate=null;
-    S.openId=t.dataset.open;render();$("sheet").scrollTop=0;return}
-  if(t.dataset.edit){S.editing=clone(D.alumnos[t.dataset.edit]);S.openId=null;S.confirmDel=false;render();$("sheet").scrollTop=0;return}
-  if(t.dataset.wd!==undefined){leerForm();const i=Number(t.dataset.wd);const ds=S.editing.dias||[];S.editing.dias=ds.includes(i)?ds.filter(x=>x!==i):[...ds,i];renderSheet();return}
-  if(t.dataset.day){const k=keyOf(S.y,S.m);
-    if(S.festivosOpen&&!S.openId){const mm=mes(S.y,S.m);const f=new Set(mm.festivos);f.has(t.dataset.day)?f.delete(t.dataset.day):f.add(t.dataset.day);mm.festivos=[...f].sort();saveMes(k,"todos");render();return}
-    S.selDate=S.selDate===t.dataset.day?null:t.dataset.day;render();return}
-  if(t.dataset.set!==undefined){const id=S.openId,a=D.alumnos[id],mm=mes(S.y,S.m);const ov={...(mm.dias[id]||{})};
-    if(t.dataset.set==="reset"){delete ov[S.selDate];if(mm.horaExtra[id])delete mm.horaExtra[id][S.selDate]}
-    else{const v=Number(t.dataset.set);const p=calc(a).porDia[S.selDate];const normal=p.habitual&&!p.fest?(a.horas||1):0;if(v===normal)delete ov[S.selDate];else ov[S.selDate]=v}
-    mm.dias[id]=ov;saveMes(keyOf(S.y,S.m),[id]);render();return}
-  const act=t.dataset.act;
+  const ds=t.dataset;
+  if(t.id&&t.id.startsWith("tab-")){S.tab=t.id.slice(4);S.confirmDia=null;render();window.scrollTo(0,0);return}
+  if(ds.acept){t.disabled=true;responder(ds.acept,true);return}
+  if(ds.rech){t.disabled=true;responder(ds.rech,false);return}
+  if(ds.prop){S.sheet={k:"proponer",sid:ds.prop};render();$("sheet").scrollTop=0;return}
+  if(ds.visto){const x=D.solicitudes[ds.visto];if(x){x.visto=true;fs.collection("solicitudes").doc(x.id).update({visto:true,actualizada:ahora()}).catch(fallo);render()}return}
+  if(ds.vista){S.vista=ds.vista;try{localStorage.setItem("vista-alumnos",S.vista)}catch(x){}render();return}
+  if(ds.pick){const id=ds.pick;S.sel.has(id)?S.sel.delete(id):S.sel.add(id);renderLista();return}
+  if(ds.filtro){S.filtro=ds.filtro;render();return}
+  if(ds.add){S.sheet={k:"anadir",iso:ds.add,aid:null,q:""};S.confirmDia=null;render();$("sheet").scrollTop=0;setTimeout(()=>$("anQ")&&$("anQ").focus(),60);return}
+  if(ds.anpick){S.sheet.aid=ds.anpick;renderSheet();return}
+  if(ds.canc){S.confirmDia=ds.canc;render();setTimeout(()=>$("cdMotivo")&&$("cdMotivo").focus(),60);return}
+  if(ds.recup){const iso=ds.recup;const mm=mesIso(iso);mm.festivos=mm.festivos.filter(f=>f!==iso);saveMes(keyIso(iso),"todos");
+    const afect=activos().filter(a=>infoIso(a,iso).h>0).map(a=>a.id);if(futuro(iso))enviarAviso(afect,"Clase recuperada","Al final sí hay clase el "+fechaLarga(iso)+".");
+    render();toast("Día recuperado");return}
+  if(ds.clase){const [aid,iso]=ds.clase.split("|");S.sheet={k:"clase",aid,iso};render();$("sheet").scrollTop=0;return}
+  if(ds.open){if(ds.month){const d=parseIso(ds.month);S.y=d.getFullYear();S.m=d.getMonth();S.selDate=ds.month}else S.selDate=null;
+    S.editing=null;S.sheet={k:"alumno",id:ds.open};render();$("sheet").scrollTop=0;return}
+  if(ds.edit){S.editing=clone(D.alumnos[ds.edit]);S.sheet=null;S.confirmDel=false;render();$("sheet").scrollTop=0;return}
+  if(ds.wd!==undefined){leerForm();const i=Number(ds.wd);const d=S.editing.dias||[];S.editing.dias=d.includes(i)?d.filter(x=>x!==i):[...d,i];renderSheet();return}
+  if(ds.day){
+    if(S.sheet&&S.sheet.k==="festivos"){const mm=mes(S.y,S.m);const f=new Set(mm.festivos);f.has(ds.day)?f.delete(ds.day):f.add(ds.day);mm.festivos=[...f].sort();saveMes(keyOf(S.y,S.m),"todos");render();return}
+    S.selDate=S.selDate===ds.day?null:ds.day;render();return}
+  if(ds.set!==undefined){const id=openId(),a=D.alumnos[id],mm=mes(S.y,S.m),iso=S.selDate;const ov={...(mm.dias[id]||{})};
+    if(ds.set==="reset"){delete ov[iso];if(mm.horaExtra[id])delete mm.horaExtra[id][iso];setMotivo(id,iso,"");mm.dias[id]=ov}
+    else setClase(id,iso,Number(ds.set),infoIso(a,iso).t);
+    saveMes(keyOf(S.y,S.m),[id]);
+    if(futuro(iso)){const p=infoIso(a,iso);encolarAviso(id,fechaLarga(iso)+": "+(p.h>0?rango(p.t,p.h):"sin clase"))}
+    render();return}
+  const act=ds.act;
   switch(act){
     case "prev":cambiarMes(-1);break;
     case "next":cambiarMes(1);break;
@@ -669,18 +933,43 @@ document.addEventListener("click",async e=>{
     case "wnext":S.wk.setDate(S.wk.getDate()+7);render();break;
     case "whoy":S.wk=lunes(new Date());render();break;
     case "nuevo":nuevoAlumno();break;
-    case "festivos":S.festivosOpen=true;render();break;
-    case "close":S.openId=null;S.festivosOpen=false;S.selDate=null;render();break;
+    case "festivos":S.sheet={k:"festivos"};render();break;
+    case "close":cerrar();break;
     case "cancel":S.editing=null;render();break;
+    case "hist":S.histOpen=!S.histOpen;render();break;
+    case "cdNo":S.confirmDia=null;render();break;
+    case "cdSi":{const iso=S.confirmDia;const motivo=($("cdMotivo")||{}).value?.trim()||"";const mm=mesIso(iso);
+      const afect=activos().filter(a=>infoIso(a,iso).h>0).map(a=>a.id);
+      mm.festivos=[...new Set([...mm.festivos,iso])].sort();afect.forEach(aid=>{setClase(aid,iso,0);if(motivo)setMotivo(aid,iso,motivo)});
+      saveMes(keyIso(iso),"todos");
+      if(futuro(iso))enviarAviso(afect,"Clase cancelada","Tu clase del "+fechaLarga(iso)+" se cancela"+(motivo?": "+motivo:"")+".");
+      S.confirmDia=null;render();toast(afect.length?"Día cancelado. Avisados "+afect.length+" alumnos.":"Día cancelado");break}
+    case "anOtro":S.sheet.aid=null;S.sheet.t=null;S.sheet.h=null;renderSheet();break;
+    case "anadirClase":{const {iso,aid}=S.sheet;const tt=$("anT").value,hh=Number($("anH").value);if(!tt){toast("Pon la hora");break}
+      saveMes(setClase(aid,iso,hh,tt),[aid]);if(futuro(iso))encolarAviso(aid,"Nueva clase el "+fechaLarga(iso)+" "+rango(tt,hh));
+      cerrar();toast("Clase añadida");break}
+    case "moverClase":{const {aid,iso}=S.sheet;const f=$("cmF").value,tt=$("cmT").value,hh=Number($("cmH").value);if(!f||!tt){toast("Pon el día y la hora");break}
+      const keys=new Set();if(f!==iso)keys.add(setClase(aid,iso,0));keys.add(setClase(aid,f,hh,tt));keys.forEach(k=>saveMes(k,[aid]));
+      if(futuro(iso)||futuro(f))encolarAviso(aid,"Tu clase del "+fechaLarga(iso)+" pasa al "+fechaLarga(f)+" "+rango(tt,hh));
+      cerrar();toast("Clase movida");break}
+    case "quitarClase":{const {aid,iso}=S.sheet;const m=$("cmM").value.trim();saveMes(setClase(aid,iso,0),[aid]);setMotivo(aid,iso,m||"Quitada por la profesora");saveMes(keyIso(iso));
+      if(futuro(iso))encolarAviso(aid,"Se quita tu clase del "+fechaLarga(iso)+(m?" ("+m+")":""));cerrar();toast("Clase quitada");break}
+    case "enviarProp":{const x=D.solicitudes[S.sheet.sid];const f=$("pF").value,tt=$("pT").value,hh=Number($("pH").value),n=$("pN").value.trim();
+      if(!f||!tt){toast("Pon el día y la hora");break}
+      Object.assign(x,{estado:"propuesta",f,t:tt,h:hh,notaProfe:n,por:"profesora",actualizada:ahora()});
+      fs.collection("solicitudes").doc(x.id).update({estado:"propuesta",f,t:tt,h:hh,notaProfe:n,por:"profesora",actualizada:x.actualizada}).catch(fallo);
+      enviarAviso([x.alumnoId],"Tu profesora te propone otra hora","Te propone el "+fechaLarga(f)+" "+rango(tt,hh)+(n?" («"+n+"»)":"")+". Entra para aceptarla o proponer otra.");
+      cerrar();toast("Propuesta enviada");break}
+    case "pushOn":{t.disabled=true;try{const tok=await obtenerToken(true);await guardarTokenProfe(tok);S.pushOn=true;toast("Avisos activados en este dispositivo")}catch(err){console.error(err);toast(errorPush(err))}render();break}
     case "borrar":leerForm();S.confirmDel=true;renderSheet();break;
     case "borrarNo":leerForm();S.confirmDel=false;renderSheet();break;
     case "borrarSi":{const id=S.editing.id;S.editing=null;S.confirmDel=false;deleteAlumno(id);render();toast("Alumno borrado");break}
-    case "pagar":{const id=S.openId,mm=mes(S.y,S.m);if(mm.pagado[id])delete mm.pagado[id];else mm.pagado[id]=isoOf(new Date());saveMes(keyOf(S.y,S.m));render();toast(mm.pagado[id]?"Marcado como pagado":"Quitado «pagado»");break}
-    case "copiar":copiar(textoRecibo(D.alumnos[S.openId]),"Recibo copiado. Pégalo en WhatsApp.");break;
-    case "copiarEnlace":{const a=D.alumnos[S.openId];if(!a.token){a.token=randId(16);saveAlumno(a)}copiar("Hola, aquí puedes ver tus clases: "+enlaceHorario(a),"Enlace copiado. Pégalo en WhatsApp.");break}
-    case "nuevoEnlace":{const a=D.alumnos[S.openId];if(a.token)fs.collection("horarios").doc(a.token).delete().catch(()=>{});a.token=randId(16);saveAlumno(a);render();toast("Enlace nuevo creado. El anterior ya no funciona.");break}
-    case "print":imprimir([D.alumnos[S.openId]]);break;
-    case "pdf":{const a=D.alumnos[S.openId];pdf([a],"Recibo-"+nombreArchivo(a.nombre)+"-"+MESES[S.m]+"-"+S.y+".pdf");break}
+    case "pagar":{const id=openId(),mm=mes(S.y,S.m);if(mm.pagado[id])delete mm.pagado[id];else mm.pagado[id]=isoOf(new Date());saveMes(keyOf(S.y,S.m));render();toast(mm.pagado[id]?"Marcado como pagado":"Quitado «pagado»");break}
+    case "copiar":copiar(textoRecibo(D.alumnos[openId()]),"Recibo copiado. Pégalo en WhatsApp.");break;
+    case "copiarEnlace":{const a=D.alumnos[openId()];if(!a.token){a.token=randId(16);saveAlumno(a)}copiar("Hola, aquí puedes ver tus clases: "+enlaceHorario(a),"Enlace copiado. Pégalo en WhatsApp.");break}
+    case "nuevoEnlace":{const a=D.alumnos[openId()];if(a.token)fs.collection("horarios").doc(a.token).delete().catch(()=>{});a.token=randId(16);saveAlumno(a);render();toast("Enlace nuevo creado. El anterior ya no funciona.");break}
+    case "print":imprimir([D.alumnos[openId()]]);break;
+    case "pdf":{const a=D.alumnos[openId()];pdf([a],"Recibo-"+nombreArchivo(a.nombre)+"-"+MESES[S.m]+"-"+S.y+".pdf");break}
     case "selIni":S.selMode=true;S.sel.clear();render();break;
     case "selTodos":listaFiltrada().forEach(a=>S.sel.add(a.id));renderLista();break;
     case "selFin":S.selMode=false;S.sel.clear();render();break;
@@ -691,9 +980,8 @@ document.addEventListener("click",async e=>{
       const blob=new Blob([JSON.stringify(D,null,1)],{type:"application/json"});const u=URL.createObjectURL(blob);const l=document.createElement("a");
       l.href=u;l.download="copia-recibos-"+isoOf(new Date())+".json";document.body.appendChild(l);l.click();l.remove();setTimeout(()=>URL.revokeObjectURL(u),2000);render();toast("Copia guardada");break}
     case "restore":$("fileRestore").click();break;
-    case "importarLocal":{const x=localAntiguo();if(x){t.disabled=true;try{await importar(x)}catch(err){fallo(err)}}break}
     case "salir":auth.signOut();break;
-    case "verPet":S.tab="horario";render();window.scrollTo(0,0);break;
+    case "verPet":S.tab="peticiones";render();window.scrollTo(0,0);break;
     case "olvido":{const em=$("lEmail").value.trim();if(!em){$("lErr").hidden=false;$("lErr").textContent="Escribe tu correo y vuelve a pulsar.";break}
       auth.sendPasswordResetEmail(em).then(()=>toast("Te hemos mandado un correo para cambiarla")).catch(()=>{$("lErr").hidden=false;$("lErr").textContent="No se pudo enviar. Revisa el correo."});break}
   }
@@ -714,76 +1002,197 @@ document.addEventListener("submit",e=>{
   S.editing=null;saveAlumno(a);render();toast("Guardado");
 });
 document.addEventListener("change",e=>{
-  if(e.target.id==="horaDia"){const id=S.openId,mm=mes(S.y,S.m);mm.horaExtra[id]=mm.horaExtra[id]||{};
-    if(e.target.value)mm.horaExtra[id][S.selDate]=e.target.value;else delete mm.horaExtra[id][S.selDate];saveMes(keyOf(S.y,S.m),[id]);render()}
+  if(e.target.id==="horaDia"){const id=openId(),iso=S.selDate,a=D.alumnos[id];const p=infoIso(a,iso);
+    saveMes(setClase(id,iso,p.h||a.horas||1,e.target.value),[id]);if(futuro(iso))encolarAviso(id,fechaLarga(iso)+": "+rango(e.target.value,p.h||a.horas||1));render()}
+  if(e.target.id==="anT"||e.target.id==="anH"){S.sheet.t=$("anT").value;S.sheet.h=Number($("anH").value);
+    const av=choques({f:S.sheet.iso,t:S.sheet.t,h:S.sheet.h,alumnoId:S.sheet.aid});$("anAv").innerHTML=av.map(t=>`<p class="hint" style="color:var(--warn);font-weight:700">${esc(t)}</p>`).join("")}
+  if(["pF","pT","pH"].includes(e.target.id)){const x=D.solicitudes[S.sheet.sid];const av=choques({f:$("pF").value,t:$("pT").value,h:Number($("pH").value),alumnoId:x.alumnoId,tipo:x.tipo,de:x.de});
+    $("pAv").innerHTML=av.map(t=>`<p class="hint" style="color:var(--warn);font-weight:700">${esc(t)}</p>`).join("")}
 });
 document.addEventListener("input",e=>{
   if(e.target.id==="profesora"){D.config.profesora=e.target.value;saveConfig();publicarHorarios("todos")}
   if(e.target.id==="q"){S.q=e.target.value;renderLista()}
-  if(e.target.id==="qa"){S.qa=e.target.value;const pos=e.target.selectionStart;render();const i=$("qa");if(i){i.focus();i.setSelectionRange(pos,pos)}}
+  if(e.target.id==="qa"){S.qa=e.target.value;$("listaAlumnos").innerHTML=htmlAlumnos()}
+  if(e.target.id==="anQ"){S.sheet.q=e.target.value;$("anList").innerHTML=htmlPick()}
 });
-document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("sheet").hidden){S.openId=null;S.editing=null;S.festivosOpen=false;S.selDate=null;render()}});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("sheet").hidden){S.sheet=null;S.editing=null;S.selDate=null;render()}});
 window.addEventListener("afterprint",()=>{$("printArea").innerHTML=""});
 
-/* ---------- página que ve el alumno ---------- */
+/* ======================================================
+   PÁGINA DEL ALUMNO
+   ====================================================== */
 function vistaAlumno(token){
   document.title="Mis clases";
-  $("app").classList.add("kid");
+  $("app").classList.add("kid");$("nav").hidden=true;
   $("app").innerHTML=`<div class="loading">Cargando tus clases…</div>`;
-  const LSK="peticiones-"+token;
+  const LSK="peticiones-"+token,LSP="avisos-"+token;
   const mias=()=>{try{return JSON.parse(localStorage.getItem(LSK)||"[]")}catch(e){return []}};
-  const guardarMias=l=>{try{localStorage.setItem(LSK,JSON.stringify(l.slice(-20)))}catch(e){}};
-  let h=null,locales={},enviado=false;
-  const fecha=c=>{const dt=new Date(c.f+"T12:00");return DIAS_SG[wdOf(dt)]+" "+dt.getDate()+" de "+MESES[dt.getMonth()]};
-  const hora=c=>c.t?c.t+" – "+(c.fin||finHora(c.t,c.h)):hrs(c.h);
-  const ESTADO={pendiente:"Esperando respuesta",aceptada:"Aceptada",rechazada:"No puede ese día"};
+  const guardarMias=l=>{try{localStorage.setItem(LSK,JSON.stringify([...new Set(l)].slice(-30)))}catch(e){}};
+  const K={h:null,loc:{},wk:lunes(new Date()),sheet:null,push:false};
+  try{K.push=localStorage.getItem(LSP)==="1"}catch(e){}
+  const PX=56;
 
+  function sols(){const o={};(K.h.solicitudes||[]).forEach(x=>o[x.id]=Object.assign({tipo:"extra"},x));for(const x of Object.values(K.loc))o[x.id]=Object.assign({tipo:"extra"},x);return Object.values(o)}
+  const abiertas=()=>sols().filter(x=>["pendiente","propuesta","confirmada"].includes(x.estado)||(x.tipo==="falta"&&x.estado==="aviso"));
+  function bloques(){
+    const out=[];const ab=abiertas();
+    const faltaEn=new Set(ab.filter(x=>x.tipo==="falta").map(x=>x.f));
+    const cambioDe=new Map(ab.filter(x=>x.tipo==="cambio"&&x.de).map(x=>[x.de.f,x]));
+    for(const c of K.h.clases){
+      let cls=c.extra?"extra":"",lab=c.extra?"Extra":"";
+      if(faltaEn.has(c.f)){cls="off";lab="No vas"}
+      else if(cambioDe.has(c.f)){const x=cambioDe.get(c.f);cls=x.estado==="confirmada"?"off":"pend";lab=x.estado==="confirmada"?"Movida":"Cambio pedido"}
+      out.push({f:c.f,t:c.t,h:c.h,cls,lab,clase:c});
+    }
+    for(const x of ab){
+      if(x.tipo==="falta"){if(x.aplicada&&x.t)out.push({f:x.f,t:x.t,h:x.h||1,cls:"off",lab:"No vas",sol:x});continue}
+      const cls=x.estado==="propuesta"?"prop":x.estado==="confirmada"?"extra":"pend";
+      const lab=x.estado==="propuesta"?"Propuesta":x.estado==="confirmada"?"Confirmada":"Pendiente";
+      out.push({f:x.f,t:x.t,h:x.h,cls,lab,sol:x});
+    }
+    return out;
+  }
+  function gridSemana(bl){
+    const dias=[...Array(7)].map((_,i)=>{const d=new Date(K.wk);d.setDate(d.getDate()+i);return d});
+    const isos=dias.map(isoOf);const sem=bl.filter(b=>isos.includes(b.f));
+    const cols=[0,1,2,3,4].concat([5,6].filter(i=>sem.some(b=>b.f===isos[i])));
+    const conT=bl.filter(b=>b.t);let mn=16,mx=21;
+    if(conT.length){mn=Math.min(...conT.map(b=>Math.floor(toMin(b.t)/60)));mx=Math.max(...conT.map(b=>Math.ceil((toMin(b.t)+b.h*60)/60)))}
+    if(mx-mn<3)mx=mn+3;const H=(mx-mn)*PX;const hoyI=hoyIso();
+    let html=`<div class="wk" style="grid-template-columns:38px repeat(${cols.length},1fr);--px:${PX}px"><div class="wh"></div>`;
+    html+=cols.map(i=>`<div class="wh${isos[i]===hoyI?" hoy":""}">${DIAS_CORTO[i]}<b>${dias[i].getDate()}</b></div>`).join("");
+    html+=`<div class="tcol" style="height:${H}px">${[...Array(mx-mn+1)].map((_,k)=>k&&k<mx-mn?`<span style="top:${k*PX}px">${mn+k}:00</span>`:"").join("")}</div>`;
+    for(const i of cols){
+      const del=sem.filter(b=>b.f===isos[i]&&b.t);
+      html+=`<div class="dcol${isos[i]===hoyI?" hoy":""}" style="height:${H}px">${del.map(b=>{const top=(toMin(b.t)-mn*60)/60*PX;const hh=Math.max(b.h*PX-4,22);
+        const idx=bl.indexOf(b);return `<button class="blk ${b.cls}${b.f<hoyI?" past":""}" style="top:${top+2}px;height:${hh}px" data-kb="${idx}" aria-label="${fechaLarga(b.f)} ${rango(b.t,b.h)} ${b.lab}"><span>${b.t}</span><span>${finHora(b.t,b.h)}</span>${b.lab?`<small>${b.lab}</small>`:""}</button>`}).join("")}</div>`;
+    }
+    html+=`</div>`;
+    const sinHora=sem.filter(b=>!b.t);
+    if(sinHora.length)html+=`<p class="hint" style="margin-top:6px">Sin hora: ${sinHora.map(b=>fechaLarga(b.f)).join(", ")}</p>`;
+    return html;
+  }
+  function limitesSemana(){const fs_=K.h.clases.map(c=>c.f).concat(sols().map(x=>x.f)).sort();const hoyL=lunes(new Date());
+    const min=fs_.length?lunes(parseIso(fs_[0])):hoyL;const max=fs_.length?lunes(parseIso(fs_[fs_.length-1])):hoyL;return {min:min<hoyL?min:hoyL,max:max>hoyL?max:hoyL}}
   function pintar(){
-    const hoyIso=isoOf(new Date());const fut=h.clases.filter(c=>c.f>=hoyIso);const prox=fut[0];
-    const porMes={};h.clases.forEach(c=>{const k=c.f.slice(0,7);(porMes[k]=porMes[k]||[]).push(c)});
-    const bloques=Object.entries(porMes).map(([k,l])=>{const [y,m]=k.split("-").map(Number);
-      return `<div class="section"><h3 style="text-transform:capitalize">${MESES[m-1]} ${y}</h3><div class="klist">${l.map(c=>`<div class="kitem${c.f<hoyIso?" past":""}"><span class="f">${fecha(c)}${c.extra?' <span class="tag">extra</span>':""}</span><span class="mono num">${hora(c)}</span></div>`).join("")}</div></div>`}).join("");
-    // peticiones: las publicadas por la profesora y las enviadas desde este móvil
-    const pets={};(h.solicitudes||[]).forEach(x=>pets[x.id]=x);Object.values(locales).forEach(x=>{if(!pets[x.id]||pets[x.id].estado==="pendiente")pets[x.id]=x});
-    const lp=Object.values(pets).filter(x=>x.estado==="pendiente"||x.f>=hoyIso).sort((a,b)=>a.f.localeCompare(b.f));
-    const max=new Date();max.setDate(max.getDate()+60);
-    $("app").innerHTML=`<div><div class="label">Clases con ${esc(h.profesora||"tu profesora")}</div><h1>${esc(h.nombre)}</h1><p class="hint" style="margin-top:6px">Normalmente: ${esc(h.normal)}</p></div>
-      <div class="section">${prox?`<div class="next"><span class="label" style="color:inherit;opacity:.8">Próxima clase</span><span class="big">${fecha(prox)}</span><span class="mono">${hora(prox)}</span></div>`:`<div class="empty"><strong>No hay clases apuntadas</strong>Cuando tu profesora apunte las del mes que viene aparecerán aquí.</div>`}</div>
-      <div class="section"><h3>Pedir una clase</h3>
-        <form class="kform" id="kForm">
-          <div class="grid3">
-            <div class="field"><label class="label" for="kFecha">Día</label><input type="date" id="kFecha" required min="${isoOf(new Date())}" max="${isoOf(max)}"></div>
-            <div class="field"><label class="label" for="kHora">Hora</label><input type="time" id="kHora" required step="900"></div>
-            <div class="field"><label class="label" for="kHoras">Duración</label><select id="kHoras">${[1,1.5,2,2.5,3].map(v=>`<option value="${v}" ${v===(h.horas||1)?"selected":""}>${hrs(v)}</option>`).join("")}</select></div>
-          </div>
-          <div class="field"><label class="label" for="kNota">Mensaje (opcional)</label><input id="kNota" maxlength="300" placeholder="Ej.: tengo examen de mates el jueves"></div>
-          <p class="err" id="kErr" hidden></p>
-          <button class="btn primary" type="submit">Enviar petición</button>
-          ${enviado?`<p class="hint" style="color:var(--ok);font-weight:700">Petición enviada. Tu profesora la verá y te la confirmará aquí.</p>`:`<p class="hint">Tu profesora decide si puede. La respuesta aparece aquí mismo.</p>`}
-        </form></div>
-      ${lp.length?`<div class="section"><h3>Tus peticiones</h3><div class="klist">${lp.map(x=>`<div class="kitem"><span class="f">${fecha(x)} · <span class="mono">${hora(x)}</span></span><span class="st ${x.estado}">${ESTADO[x.estado]||x.estado}</span></div>`).join("")}</div></div>`:""}
-      ${bloques}`;
-    $("kForm").addEventListener("submit",enviar);
+    const hoyI=hoyIso();const bl=bloques();
+    const prox=bl.filter(b=>b.f>=hoyI&&b.cls!=="off"&&b.cls!=="pend"&&b.cls!=="prop").sort((a,b)=>(a.f+a.t).localeCompare(b.f+b.t))[0];
+    const props=sols().filter(x=>x.estado==="propuesta");
+    const lim=new Date(Date.now()-21*864e5).toISOString();const avisos=(K.h.avisos||[]).filter(a=>a.fecha>=lim).slice(0,4);
+    const fin=new Date(K.wk);fin.setDate(fin.getDate()+6);
+    const {min,max}=limitesSemana();
+    const lista=sols().filter(x=>x.estado!=="cancelada"&&(x.f>=hoyI||["pendiente","propuesta"].includes(x.estado))).sort((a,b)=>a.f.localeCompare(b.f));
+    $("app").innerHTML=`<div><div class="label">Clases con ${esc(K.h.profesora||"tu profesora")}</div><h1>${esc(K.h.nombre)}</h1><p class="hint" style="margin-top:6px">Normalmente: ${esc(K.h.normal)}</p></div>
+      ${props.map(x=>`<div class="section"><div class="kprop"><strong>Tu profesora te propone otra hora</strong>
+        <span>${esc(fechaLarga(x.f))} · <span class="mono">${rango(x.t,x.h)}</span></span>${x.notaProfe?`<span class="hint">«${esc(x.notaProfe)}»</span>`:""}
+        <div class="btns"><button class="btn primary" data-kacept="${x.id}">Aceptar</button><button class="btn" data-kotra="${x.id}">Proponer otra</button><button class="btn ghost" data-kcanc="${x.id}">Ya no la quiero</button></div></div></div>`).join("")}
+      <div class="section">${prox?`<div class="next"><span class="label" style="color:inherit;opacity:.8">Próxima clase</span><span class="big">${fechaLarga(prox.f)}</span><span class="mono">${rango(prox.t,prox.h)}</span></div>`:`<div class="empty"><strong>No hay clases apuntadas</strong>Cuando tu profesora apunte las del mes que viene aparecerán aquí.</div>`}</div>
+      ${avisos.length?`<div class="section"><h3>Avisos de tu profesora</h3>${avisos.map(a=>`<div class="aviso-k"><span>${esc(a.texto)}</span><small>${fmtFecha(a.fecha.slice(0,10))}</small></div>`).join("")}</div>`:""}
+      <div class="section"><div class="month" style="margin:0"><button class="iconbtn" data-kw="-1" aria-label="Semana anterior" ${K.wk<=min?"disabled":""}>‹</button><h3 class="num">${K.wk.getDate()} ${MESES[K.wk.getMonth()].slice(0,3)} – ${fin.getDate()} ${MESES[fin.getMonth()].slice(0,3)}</h3><button class="iconbtn" data-kw="1" aria-label="Semana siguiente" ${K.wk>=max?"disabled":""}>›</button></div>
+        ${gridSemana(bl)}
+        <div class="kleg"><span><i style="background:var(--accent)"></i>Clase</span><span><i style="background:var(--ok)"></i>Extra</span><span><i style="border:2px dashed var(--accent)"></i>Pendiente</span><span><i style="background:var(--warn-soft);border:2px solid var(--warn)"></i>Propuesta</span><span><i style="background:var(--hatch)"></i>No vas</span></div>
+        <p class="hint">Toca una clase para cambiarla o avisar de que no puedes ir.</p>
+        <div class="btns"><button class="btn primary" data-kact="extra">+ Pedir clase extra</button></div></div>
+      ${lista.length?`<div class="section"><h3>Tus peticiones</h3><div class="klist">${lista.map(x=>`<div class="kitem"><span class="f">${x.tipo==="falta"?"No vas":x.tipo==="cambio"?"Cambio":"Extra"} · ${fechaLarga(x.f)}${x.t&&x.tipo!=="falta"?` · <span class="mono">${rango(x.t,x.h)}</span>`:""}</span><span class="st ${x.estado==="aceptada"||x.estado==="confirmada"?"aceptada":x.estado==="rechazada"?"rechazada":"pendiente"}">${ESTADO_K[x.estado]||x.estado}</span></div>`).join("")}</div></div>`:""}
+      <div class="section"><h3>Avisos en este móvil</h3>${K.push?`<p class="hint"><strong style="color:var(--ok)">Activados.</strong> Te avisaremos cuando tu profesora responda o cambie una clase.</p>`
+        :`<p class="hint">Recibe un aviso como un mensaje cuando tu profesora responda o cambie una clase.</p>${pushHint()}<div class="btns"><button class="btn" data-kact="push">Activar avisos</button></div>`}</div>`;
+    pintarSheet();
   }
-  async function enviar(e){
-    e.preventDefault();const err=$("kErr");err.hidden=true;
-    const f=$("kFecha").value,t=$("kHora").value,hh=Number($("kHoras").value),nota=$("kNota").value.trim().slice(0,300);
-    if(!f||f<isoOf(new Date())){err.hidden=false;err.textContent="Elige un día a partir de hoy.";return}
-    if(!t){err.hidden=false;err.textContent="Elige la hora.";return}
+  function pintarSheet(){
+    const sh=$("sheet");const s=K.sheet;let html="";
+    if(s){
+      if(s.k==="clase"){const b=s.b;const sol=b.sol;
+        html=cab(fechaLarga(b.f),"kclose")+`<p class="hint mono">${rango(b.t,b.h)}${b.lab?" · "+b.lab:""}</p>`;
+        if(sol&&sol.estado==="pendiente")html+=`<div class="section"><p>Has pedido esto y tu profesora aún no ha respondido.</p><div class="btns"><button class="btn ghost" data-kcanc="${sol.id}">Cancelar mi petición</button></div></div>`;
+        else if(sol&&sol.estado==="propuesta")html+=`<div class="section"><div class="btns"><button class="btn primary" data-kacept="${sol.id}">Aceptar esta hora</button><button class="btn" data-kotra="${sol.id}">Proponer otra</button></div></div>`;
+        else if(b.cls==="off")html+=`<p class="section">Esta clase no la tienes.</p>`;
+        else if(b.f<hoyIso())html+=`<p class="section hint">Esta clase ya ha pasado.</p>`;
+        else html+=`<div class="section btns"><button class="btn primary" data-kact="cambio">Pedir cambio de día u hora</button><button class="btn" data-kact="falta">No puedo ir</button></div>`;
+      }
+      if(s.k==="form"){const tipo=s.tipo;const max=new Date();max.setDate(max.getDate()+60);
+        const tit=tipo==="extra"?"Pedir clase extra":tipo==="cambio"?"Pedir cambio":tipo==="otra"?"Proponer otra hora":"No puedo ir";
+        html=cab(tit,"kclose");
+        if(tipo==="falta")html+=`<p class="hint">${fechaLarga(s.b.f)} · ${rango(s.b.t,s.b.h)}</p>
+          <div class="section"><span class="label">Motivo</span><div class="chips">${MOTIVOS.map(m=>`<button class="chip" data-kmot="${m}" aria-pressed="${s.mot===m}">${m}</button>`).join("")}</div>
+          <div class="field"><label class="label" for="kNota">Algo más (opcional)</label><input id="kNota" maxlength="200" placeholder="Ej.: tengo fiebre"></div>
+          <p class="err" id="kErr" hidden></p><div class="btns"><button class="btn primary" data-kact="enviarFalta">Avisar a mi profesora</button></div>
+          <p class="hint">Tu profesora recibe el aviso. No hace falta que lo acepte.</p></div>`;
+        else{const d=s.d||{};
+          html+=`${tipo==="cambio"?`<p class="hint">Ahora: ${fechaLarga(s.b.f)} · ${rango(s.b.t,s.b.h)}</p>`:""}
+          <form class="section" id="kForm"><div class="formrow">
+            <div class="field"><label class="label" for="kFecha">Día</label><input type="date" id="kFecha" required min="${hoyIso()}" max="${isoOf(max)}" value="${d.f||""}"></div>
+            <div class="field"><label class="label" for="kHora">Hora</label><input type="time" id="kHora" required step="900" value="${d.t||""}"></div>
+            <div class="field"><label class="label" for="kHoras">Duración</label><select id="kHoras">${durOpts(d.h||K.h.horas||1)}</select></div></div>
+            <div class="field"><label class="label" for="kNota">Mensaje (opcional)</label><input id="kNota" maxlength="200" placeholder="Ej.: tengo examen el jueves"></div>
+            <p class="err" id="kErr" hidden></p>
+            <button class="btn primary" type="submit">Enviar a mi profesora</button>
+            <p class="hint">Tu profesora decide. Si no puede, te propondrá otra hora aquí mismo.</p></form>`}
+      }
+    }
+    if(html){$("sheetBody").innerHTML=html}
+    sh.hidden=!html;document.body.style.overflow=html?"hidden":"";
+  }
+  function avisarProfe(titulo,cuerpo){fs.collection("avisos").add({para:"profesora",owner:K.h.owner,token,titulo:titulo.slice(0,90),cuerpo:cuerpo.slice(0,280),creado:ahora()}).catch(e=>console.error(e))}
+  async function crear(tipo,{f,t,h,nota,de,motivo}){
+    const id=randId(20);const now=ahora();
+    const data={owner:K.h.owner,token,alumnoId:K.h.alumnoId,nombre:K.h.nombre,tipo,f,t,h,nota:nota||"",estado:tipo==="falta"?"aviso":"pendiente",por:"alumno",creada:now,actualizada:now,aplicada:false};
+    if(de)data.de=de;if(motivo)data.motivo=motivo;
+    await fs.collection("solicitudes").doc(id).set(data);
+    K.loc[id]=Object.assign({id},data);guardarMias([...mias(),id]);
+    return data;
+  }
+  async function actualizar(x,cambios){
+    const upd=Object.assign({},cambios,{por:"alumno",actualizada:ahora()});
+    await fs.collection("solicitudes").doc(x.id).update(upd);
+    K.loc[x.id]=Object.assign({},x,upd);guardarMias([...mias(),x.id]);
+  }
+  const errK=(m)=>{const el=$("kErr");if(el){el.hidden=false;el.textContent=m}};
+  const solPor=id=>sols().find(x=>x.id===id);
+  document.addEventListener("click",async e=>{
+    const t=e.target.closest("button");if(!t||t.disabled)return;const ds=t.dataset;
+    if(ds.kw){K.wk.setDate(K.wk.getDate()+7*Number(ds.kw));pintar();return}
+    if(ds.kb!==undefined){K.sheet={k:"clase",b:bloques()[Number(ds.kb)]};pintarSheet();return}
+    if(ds.kmot){K.sheet.mot=ds.kmot;const n=$("kNota").value;pintarSheet();$("kNota").value=n;return}
+    if(ds.kotra){const x=solPor(ds.kotra);K.sheet={k:"form",tipo:"otra",sol:x,d:{f:x.f,t:x.t,h:x.h}};pintarSheet();return}
+    if(ds.kacept){const x=solPor(ds.kacept);t.disabled=true;try{await actualizar(x,{estado:"confirmada"});avisarProfe(K.h.nombre+" acepta tu propuesta",descrK(x));K.sheet=null;pintar();toast("Hecho. Tu clase queda apuntada.")}catch(err){console.error(err);t.disabled=false;toast("No se pudo enviar. Revisa la conexión.")}return}
+    if(ds.kcanc){const x=solPor(ds.kcanc);t.disabled=true;try{await actualizar(x,{estado:"cancelada"});avisarProfe(K.h.nombre+" cancela su petición",descrK(x));K.sheet=null;pintar();toast("Petición cancelada")}catch(err){console.error(err);t.disabled=false;toast("No se pudo enviar. Revisa la conexión.")}return}
+    switch(ds.kact){
+      case "kclose":break;
+      case "extra":K.sheet={k:"form",tipo:"extra"};pintarSheet();break;
+      case "cambio":K.sheet={k:"form",tipo:"cambio",b:K.sheet.b,d:{h:K.sheet.b.h}};pintarSheet();break;
+      case "falta":K.sheet={k:"form",tipo:"falta",b:K.sheet.b};pintarSheet();break;
+      case "enviarFalta":{const s=K.sheet;if(!s.mot){errK("Elige un motivo.");break}t.disabled=true;
+        const extra=$("kNota").value.trim();const motivo=s.mot+(extra?": "+extra:"");
+        try{await crear("falta",{f:s.b.f,t:s.b.t,h:s.b.h,motivo});avisarProfe(K.h.nombre+" no vendrá","El "+fechaLarga(s.b.f)+" ("+rango(s.b.t,s.b.h)+"). "+motivo);K.sheet=null;pintar();toast("Aviso enviado a tu profesora")}
+        catch(err){console.error(err);t.disabled=false;errK("No se pudo enviar. Revisa la conexión.")}break}
+      case "push":{t.disabled=true;try{const tok=await obtenerToken(true);await fs.collection("pushAlumnos").doc(token).set({tokens:firebase.firestore.FieldValue.arrayUnion(tok),actualizado:ahora()},{merge:true});K.push=true;try{localStorage.setItem(LSP,"1")}catch(x){}toast("Avisos activados")}catch(err){console.error(err);toast(errorPush(err))}pintar();break}
+    }
+    if(ds.act==="kclose"){K.sheet=null;pintarSheet()}
+  });
+  function descrK(x){return fechaLarga(x.f)+(x.t?" "+rango(x.t,x.h):"")}
+  document.addEventListener("submit",async e=>{
+    if(e.target.id!=="kForm")return;e.preventDefault();
+    const s=K.sheet;const f=$("kFecha").value,t=$("kHora").value,h=Number($("kHoras").value),nota=$("kNota").value.trim().slice(0,200);
+    if(!f||f<hoyIso()){errK("Elige un día a partir de hoy.");return}
+    if(!t){errK("Elige la hora.");return}
     const btn=e.target.querySelector("[type=submit]");btn.disabled=true;
-    const id=randId(20);
-    const data={owner:h.owner,token,alumnoId:h.alumnoId,nombre:h.nombre,f,t,h:hh,nota,estado:"pendiente",creada:new Date().toISOString()};
-    try{await fs.collection("solicitudes").doc(id).set(data);
-      locales[id]=Object.assign({id},data);guardarMias([...mias(),id]);enviado=true;pintar();
-    }catch(x){console.error(x);btn.disabled=false;err.hidden=false;err.textContent="No se pudo enviar. Revisa la conexión y prueba otra vez."}
-  }
+    try{
+      if(s.tipo==="otra"){await actualizar(s.sol,{estado:"pendiente",f,t,h,nota});avisarProfe(K.h.nombre+" propone otra hora",fechaLarga(f)+" "+rango(t,h)+(nota?". "+nota:""))}
+      else if(s.tipo==="cambio"){await crear("cambio",{f,t,h,nota,de:{f:s.b.f,t:s.b.t,h:s.b.h}});avisarProfe(K.h.nombre+" pide un cambio","Del "+fechaLarga(s.b.f)+" al "+fechaLarga(f)+" "+rango(t,h)+(nota?". "+nota:""))}
+      else{await crear("extra",{f,t,h,nota});avisarProfe(K.h.nombre+" pide una clase extra",fechaLarga(f)+" "+rango(t,h)+(nota?". "+nota:""))}
+      K.sheet=null;pintar();toast("Enviado. Tu profesora te responderá aquí.");
+    }catch(err){console.error(err);btn.disabled=false;errK("No se pudo enviar. Revisa la conexión y prueba otra vez.")}
+  });
   fs.collection("horarios").doc(token).get().then(async d=>{
     if(!d.exists){$("app").innerHTML=`<div class="login"><h1>Enlace no válido</h1><p class="hint">Este enlace ya no funciona. Pide uno nuevo a tu profesora.</p></div>`;return}
-    h=d.data();h.clases=h.clases||[];
-    const pub=new Set((h.solicitudes||[]).filter(x=>x.estado!=="pendiente").map(x=>x.id));
-    await Promise.all(mias().filter(id=>!pub.has(id)).map(id=>fs.collection("solicitudes").doc(id).get().then(s=>{if(s.exists)locales[id]=Object.assign({id},s.data())}).catch(()=>{})));
+    K.h=d.data();K.h.clases=K.h.clases||[];
+    const pub=new Map((K.h.solicitudes||[]).map(x=>[x.id,x]));
+    const ids=new Set([...mias(),...[...pub.values()].filter(x=>["pendiente","propuesta","confirmada","aviso"].includes(x.estado)).map(x=>x.id)]);
+    await Promise.all([...ids].map(id=>fs.collection("solicitudes").doc(id).get().then(s=>{if(s.exists)K.loc[id]=Object.assign({id},s.data())}).catch(()=>{})));
+    const {min}=limitesSemana();if(K.wk<min)K.wk=min;
     pintar();
-  }).catch(()=>{$("app").innerHTML=`<div class="login"><h1>No se pudo cargar</h1><p class="hint">Revisa la conexión y vuelve a abrir el enlace.</p></div>`});
+    if(K.push)obtenerToken(false).then(tok=>{if(tok)fs.collection("pushAlumnos").doc(token).set({tokens:firebase.firestore.FieldValue.arrayUnion(tok),actualizado:ahora()},{merge:true})}).catch(()=>{});
+  }).catch(err=>{console.error(err);$("app").innerHTML=`<div class="login"><h1>No se pudo cargar</h1><p class="hint">Revisa la conexión y vuelve a abrir el enlace.</p></div>`});
 }
 })();
 </script>

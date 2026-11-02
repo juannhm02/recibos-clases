@@ -1,8 +1,6 @@
 {
   "name": "Recibos de Clases",
   "short_name": "Recibos",
-  "start_url": "./",
-  "scope": "./",
   "display": "standalone",
   "background_color": "#F5F7FB",
   "theme_color": "#1B2756",

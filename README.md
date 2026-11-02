@@ -12,7 +12,9 @@ App para gestionar los recibos mensuales y el horario de las clases particulares
 |---|---|
 | `index.html` | La app entera: la de la profesora y la página que ve cada alumno (`?h=código`). |
 | `firestore.rules` | Reglas de seguridad de la base de datos. |
-| `firebase.json` | Por si algún día se publica con Firebase Hosting en vez de GitHub Pages. |
+| `firebase.json` | Configuración para `firebase deploy` (reglas y función de avisos). |
+| `functions/` | Función `enviarAviso`: envía las notificaciones push (requiere plan Blaze). |
+| `firebase-messaging-sw.js` | Service worker que recibe los avisos en el móvil. |
 
 ## Cómo hacer cambios
 
@@ -37,7 +39,9 @@ Si cambias `firestore.rules`, publícalas también en la consola: **Firestore �
 
 - `users/{uid}/…`: alumnos, meses, pagos y configuración. Solo los lee y escribe ese usuario.
 - `horarios/{código}`: el horario público de cada alumno. Se lee solo con el código del enlace, no se puede listar y solo lo escribe la profesora.
-- `solicitudes/{id}`: peticiones de clase. Un alumno con enlace válido solo puede crear una pendiente para sí mismo. Responderlas solo puede la profesora.
+- `solicitudes/{id}`: clase extra, cambio de clase o aviso de falta. El alumno crea las suyas y responde a las propuestas de la profesora; aceptar, rechazar o proponer otra hora solo puede la profesora.
+- `avisos/{id}`: cola de notificaciones push. La función `enviarAviso` las manda y las borra.
+- `pushAlumnos/{código}`: dispositivos de cada alumno para recibir avisos.
 - El dominio `juannhm02.github.io` está autorizado en **Authentication › Configuración › Dominios autorizados**. Si la app se mueve a otra dirección, hay que añadir el nuevo dominio ahí.
 
 ## Cómo funciona para los alumnos
